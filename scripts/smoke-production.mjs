@@ -1,0 +1,16 @@
+import {readFileSync} from 'node:fs';import assert from 'node:assert/strict';import {PDFDocument,StandardFonts} from 'pdf-lib';
+const env={};for(const line of readFileSync('.env.local','utf8').split(/\r?\n/)){if(!line||line.startsWith('#'))continue;const n=line.indexOf('=');if(n<1)continue;const raw=line.slice(n+1);env[line.slice(0,n)]=raw.startsWith('"')?JSON.parse(raw):raw;}
+const base=process.env.TEST_BASE_URL||'http://127.0.0.1:3001';
+let r=await fetch(base+'/api/settings');assert.equal(r.status,401);
+r=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:'incorrect-password'})});assert.equal(r.status,401);
+r=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:env.APP_PASSWORD})});assert.equal(r.status,200);const cookie=r.headers.get('set-cookie').split(';')[0];assert.ok(r.headers.get('set-cookie').includes('HttpOnly'));const headers={Cookie:cookie};
+r=await fetch(base+'/api/settings',{headers});assert.equal(r.status,200);const config=await r.json();assert.equal(config.aiConfigured,true);assert.equal(config.databaseConfigured,true);console.log('PASS: authentication, encrypted session, and environment loading.');
+r=await fetch(base+'/api/settings/test',{method:'POST',headers});const connections=await r.json();console.log('Services:',JSON.stringify(connections));
+r=await fetch(base+'/api/workspace',{headers});assert.equal(r.status,200);const state=await r.json();assert.equal(state.configured,true);console.log('PASS: protected Neon workspace read.');
+const pdf=await PDFDocument.create(),page=pdf.addPage([595,842]),font=await pdf.embedFont(StandardFonts.Helvetica);
+['BEYOND TEST SUPPLIES','SYNTHETIC TEST INVOICE - NOT A REAL DOCUMENT','Invoice number: BEYOND-TEST-001','Date: 2026-10-25','VAT number: 300000000000003','','Item                      Qty   Net total   VAT 15%   Gross','Electrical cable           2      100.00      15.00    115.00','Plumbing valve             1      100.00      15.00    115.00','','Subtotal excl. VAT: 200.00 SAR','VAT 15%:              30.00 SAR','TOTAL INCL. VAT:     230.00 SAR'].forEach((line,i)=>page.drawText(line,{x:35,y:780-i*30,size:11,font}));
+const form=new FormData();form.set('file',new Blob([await pdf.save()],{type:'application/pdf'}),'beyond-test.pdf');form.set('categories',JSON.stringify([{code:'TEST-E',name:'مواد كهرباء'},{code:'TEST-P',name:'مواد سباكة'}]));
+console.log('Testing live invoice extraction…');
+const started=Date.now();r=await fetch(base+'/api/extract',{method:'POST',headers,body:form,signal:AbortSignal.timeout(260000)});const result=await r.json();
+if(!r.ok){console.log(JSON.stringify({extraction:false,status:r.status,error:result.error,seconds:Math.round((Date.now()-started)/1000)}));process.exitCode=1;}
+else {const i=result.invoice;assert.equal(i.number,'BEYOND-TEST-001');assert.equal(i.items.length,2);assert.ok(Math.abs(i.items.reduce((s,l)=>s+l.gross,0)-230)<.02);assert.equal(i.total,230);assert.equal(i.tax,30);console.log(JSON.stringify({extraction:true,items:i.items.length,total:i.total,tax:i.tax,codes:i.items.map(l=>l.categoryCode),seconds:Math.round((Date.now()-started)/1000)}));}
