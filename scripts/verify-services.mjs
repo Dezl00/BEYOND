@@ -15,7 +15,7 @@ for(let index=0;index<input.keys.length;index++){
 }
 if(selectedKey){
  try {
-  const configured=await fetch('http://127.0.0.1:3000/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:selectedKey,databaseUrl:input.databaseUrl,model:result.model})});
+  const configured=await fetch('http://127.0.0.1:3000/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKeys:input.keys.join(','),databaseUrl:input.databaseUrl,model:result.model})});
   if(!configured.ok)throw Error('LocalSetupError');const cookie=configured.headers.get('set-cookie').split(';')[0];
   const pdf=await PDFDocument.create();const page=pdf.addPage([595,842]);const font=await pdf.embedFont(StandardFonts.Helvetica);const bold=await pdf.embedFont(StandardFonts.HelveticaBold);
   const lines=['BEYOND TEST SUPPLIES','SYNTHETIC TEST INVOICE - NOT A REAL DOCUMENT','Invoice number: BEYOND-TEST-001','Date: 2026-10-25','VAT number: 300000000000003','','Item                      Qty   Net total   VAT 15%   Gross','Electrical cable           2      100.00      15.00    115.00','Plumbing valve             1      100.00      15.00    115.00','','Subtotal excl. VAT: 200.00 SAR','VAT 15%:              30.00 SAR','TOTAL INCL. VAT:     230.00 SAR'];

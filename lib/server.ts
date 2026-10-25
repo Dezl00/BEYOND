@@ -1,8 +1,9 @@
 import { neon } from '@neondatabase/serverless';
+import {resolveGeminiKeys} from './gemini';
 import type { Workspace } from './domain';
 import { cleanWorkspace, workspaceNeedsMigration } from './domain';
 const COOKIE='beyond_config';
-type Credentials={key:string;databaseUrl:string;model:string;owner:string;expires:number};
+type Credentials={keys:string[];databaseUrl:string;model:string;owner:string;expires:number};
 export class ApiError extends Error { constructor(message:string,public status=400){super(message);} }
 export async function ownerId(request:Request){const cookie=request.headers.get('cookie')?.split(';').map(v=>v.trim()).find(v=>v.startsWith('beyond_session='))?.slice(15);if(await authenticatedToken(cookie))return 'beyond-owner';throw new ApiError('سجل الدخول للوصول إلى بياناتك.',401);}
 export function protectOrigin(request:Request) {
@@ -19,7 +20,7 @@ async function encryptionKey() {
  return crypto.subtle.importKey('raw',hash,'AES-GCM',false,['encrypt','decrypt']);
 }
 export async function credentials(request:Request,owner:string):Promise<Credentials> {
- let saved:Partial<Credentials>={};
+ let saved:Partial<Credentials>&{key?:string}={};
  const cookie=request.headers.get('cookie')?.split(';').map(v=>v.trim()).find(v=>v.startsWith(COOKIE+'='))?.slice(COOKIE.length+1);
  if(cookie) try {
   const raw=from64(decodeURIComponent(cookie));
@@ -28,7 +29,7 @@ export async function credentials(request:Request,owner:string):Promise<Credenti
   if(parsed.owner===owner&&parsed.expires>Date.now()) saved=parsed;
  }catch{/* Expired or invalid cookies are never used. */}
  return {
-  key:saved.key||process.env.GEMINI_API_KEY||'',
+  keys:resolveGeminiKeys(process.env,saved),
   databaseUrl:saved.databaseUrl||process.env.DATABASE_URL||'',
   model:saved.model||process.env.GEMINI_MODEL||'gemini-2.5-flash',owner,expires:Date.now()+7*86400000
  };
