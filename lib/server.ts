@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import type { Workspace } from './domain';
-import { cleanWorkspace } from './domain';
+import { cleanWorkspace, workspaceNeedsMigration } from './domain';
 const COOKIE='beyond_config';
 type Credentials={key:string;databaseUrl:string;model:string;owner:string;expires:number};
 export class ApiError extends Error { constructor(message:string,public status=400){super(message);} }
@@ -61,8 +61,15 @@ export async function workspaceDb(url:string) {
 }
 export async function readWorkspace(url:string,owner:string):Promise<Workspace|null>{
  const sql=await workspaceDb(url);
- const rows=await sql.query('SELECT data, revision FROM beyond_workspaces WHERE owner_id = $1',[owner]);
- return rows.length?cleanWorkspace({...rows[0].data,revision:rows[0].revision}):null;
+ for(let attempt=0;attempt<3;attempt++){
+  const rows=await sql.query('SELECT data, revision FROM beyond_workspaces WHERE owner_id = $1',[owner]);
+  if(!rows.length)return null;
+  const result=cleanWorkspace({...rows[0].data,revision:rows[0].revision});
+  if(!workspaceNeedsMigration(rows[0].data))return result;
+  const migrated=await sql.query('UPDATE beyond_workspaces SET data=$1::jsonb,revision=revision+1,updated_at=now() WHERE owner_id=$2 AND revision=$3 RETURNING revision',[JSON.stringify(result),owner,rows[0].revision]);
+  if(migrated.length)return {...result,revision:migrated[0].revision};
+ }
+ throw new ApiError('تغيرت البيانات أثناء تحديث صيغة الفواتير. أعد المحاولة.',409);
 }
 export async function writeWorkspace(url:string,owner:string,state:Workspace){
  const sql=await workspaceDb(url);

@@ -22,7 +22,7 @@ if(selectedKey){
   lines.forEach((line,i)=>page.drawText(line,{x:45,y:780-i*32,size:i===0?20:11,font:i===0?bold:font}));
   const bytes=await pdf.save();const form=new FormData();form.set('file',new Blob([bytes],{type:'application/pdf'}),'beyond-test.pdf');form.set('categories',JSON.stringify([{code:'TEST-E',name:'مواد كهرباء'},{code:'TEST-P',name:'مواد سباكة'}]));
   const response=await fetch('http://127.0.0.1:3000/api/extract',{method:'POST',headers:{Cookie:cookie},body:form,signal:AbortSignal.timeout(120000)});result.extractStatus=response.status;
-  const extracted=await response.json();if(response.ok){const invoice=extracted.invoice;result.extraction=invoice.number==='BEYOND-TEST-001'&&invoice.items.length===2&&Math.abs(invoice.items.reduce((s,l)=>s+l.gross,0)-230)<.02;result.extractedSample={number:invoice.number,itemCount:invoice.items.length,total:invoice.total,tax:invoice.tax,codes:invoice.items.map(i=>i.categoryCode)};}else result.extractError=extracted.error;
+  const extracted=await response.json();if(response.ok){const invoice=extracted.invoice;result.extraction=invoice.number==='BEYOND-TEST-001'&&!!invoice.description&&invoice.totalIncludingTax===230&&invoice.vatAmount===30;result.extractedSample={number:invoice.number,description:invoice.description,total:invoice.totalIncludingTax,tax:invoice.vatAmount,category:invoice.categoryCode};}else result.extractError=extracted.error;
  }catch(e){result.extractError=e.name;}
 }
 console.log(JSON.stringify(result));
