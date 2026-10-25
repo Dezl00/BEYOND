@@ -19,6 +19,8 @@ export const emptyWorkspace: Workspace = {
  invoices:[], categories:[], revision:0,
  preferences:{company:'Beyond',employee:'',retentionHours:24,columns:columns.map(c=>c.key)}
 };
+export const isDemoInvoice = (invoice:Invoice) => invoice.demo===true || invoice.id.startsWith('demo-');
+export const cleanWorkspace = (workspace:Workspace):Workspace => ({...workspace,invoices:workspace.invoices.filter(invoice=>!isDemoInvoice(invoice))});
 export const roundCents = (value:number) => Math.round((value + Number.EPSILON)*100);
 export const money = (cents:number) => new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(cents/100);
 export const count = (value:number) => new Intl.NumberFormat('en-US').format(value);

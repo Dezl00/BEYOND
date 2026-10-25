@@ -1,10 +1,12 @@
 import {get,set,del,keys} from 'idb-keyval';
-import {Workspace,emptyWorkspace} from './domain';
+import {Workspace,emptyWorkspace,cleanWorkspace} from './domain';
 const STATE='beyond-workspace-v1';
 export type Source={bytes:ArrayBuffer;mime:string;name:string;expiresAt:number;preview?:string};
 export async function loadWorkspace():Promise<Workspace> {
  const saved=await get<Workspace>(STATE);
- return saved?{...emptyWorkspace,...saved,preferences:{...emptyWorkspace.preferences,...saved.preferences}}:structuredClone(emptyWorkspace);
+ const workspace=cleanWorkspace(saved?{...emptyWorkspace,...saved,preferences:{...emptyWorkspace.preferences,...saved.preferences}}:structuredClone(emptyWorkspace));
+ if(saved&&saved.invoices.length!==workspace.invoices.length)await set(STATE,workspace);
+ return workspace;
 }
 export const saveWorkspace=(state:Workspace)=>set(STATE,state);
 export const saveSource=(id:string,source:Source)=>set('source:'+id,source);

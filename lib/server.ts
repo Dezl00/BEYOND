@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import type { Workspace } from './domain';
+import { cleanWorkspace } from './domain';
 const COOKIE='beyond_config';
 type Credentials={key:string;databaseUrl:string;model:string;owner:string;expires:number};
 export class ApiError extends Error { constructor(message:string,public status=400){super(message);} }
@@ -61,11 +62,11 @@ export async function workspaceDb(url:string) {
 export async function readWorkspace(url:string,owner:string):Promise<Workspace|null>{
  const sql=await workspaceDb(url);
  const rows=await sql.query('SELECT data, revision FROM beyond_workspaces WHERE owner_id = $1',[owner]);
- return rows.length?{...rows[0].data,revision:rows[0].revision}:null;
+ return rows.length?cleanWorkspace({...rows[0].data,revision:rows[0].revision}):null;
 }
 export async function writeWorkspace(url:string,owner:string,state:Workspace){
  const sql=await workspaceDb(url);
- const data=JSON.stringify({...state,invoices:state.invoices.filter(i=>!i.demo)});
+ const data=JSON.stringify(cleanWorkspace(state));
  const rows=await sql.query(
   'INSERT INTO beyond_workspaces(owner_id,revision,data) VALUES($1,1,$2::jsonb) ON CONFLICT(owner_id) DO UPDATE SET revision=beyond_workspaces.revision+1,data=EXCLUDED.data,updated_at=now() WHERE beyond_workspaces.revision=$3 RETURNING revision',
   [owner,data,state.revision]
