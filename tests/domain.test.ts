@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {taxFromInclusive,taxFromExclusive,amountsFromPrinted,editInvoiceAmount,useSubtotalInsteadOfTotal,totals,invoiceProblems,invoiceAmountWarnings,duplicateCandidates,generalDescription,exportRows,parseCategories,cleanWorkspace,emptyWorkspace,normalizeInvoice,workspaceNeedsMigration} from '../lib/domain';
+import {taxFromInclusive,taxFromExclusive,amountsFromPrinted,editInvoiceAmount,useSubtotalInsteadOfTotal,totals,invoiceProblems,invoiceAmountWarnings,duplicateCandidates,generalDescription,exportRows,parseCategories,cleanWorkspace,emptyWorkspace,normalizeInvoice,workspaceNeedsMigration,invoiceEntries,editEntryAmount} from '../lib/domain';
 import {extractedSchema,workspaceSchema} from '../lib/schemas';
 import {testInvoices,testCategories} from './fixtures/invoices';
 const base=()=>structuredClone(testInvoices[0]);
@@ -17,11 +17,17 @@ test('missing totals remain incomplete rather than fabricating a total',()=>{ass
 test('editing net adds VAT while editing final extracts VAT',()=>{const net=editInvoiceAmount(base(),'netCents',200000);assert.equal(net.grossCents,230000);assert.equal(net.taxCents,30000);const gross=editInvoiceAmount(base(),'grossCents',230000);assert.equal(gross.netCents,200000);assert.equal(gross.taxCents,30000);});
 test('printed tax rounding is preserved with a visible warning instead of recomputing printed values',()=>{const i={...base(),...printed(100000,15005,115005),...amountsFromPrinted(printed(100000,15005,115005))};assert.equal(i.taxCents,15005);assert.deepEqual(invoiceProblems(i,testCategories),[]);assert.equal(invoiceAmountWarnings(i).length,1);});
 test('contradictory printed amounts are blocked before approval',()=>{const i={...base(),...printed(90000,15000,115000),...amountsFromPrinted(printed(90000,15000,115000))};assert.ok(invoiceProblems(i,testCategories).some(p=>p.includes('قبل الضريبة')));});
-test('each invoice exports exactly one general-description row without obsolete fields',()=>{const rows=exportRows([base()],testCategories);assert.equal(rows.length,1);assert.equal(rows[0].description,'شراء مواد كهربائية');assert.equal(rows[0].net,1000);assert.equal(rows[0].tax,150);assert.equal(rows[0].gross,1150);assert.ok(!('employee' in rows[0]));assert.ok(!('quantity' in rows[0]));});
+test('each invoice exports net then VAT with identical metadata and one amount column',()=>{
+ const rows=exportRows([base()],testCategories);
+ assert.equal(rows.length,2);assert.deepEqual(rows.map(r=>r.amount),[1000,150]);
+ const {amount:net,...first}=rows[0],{amount:vat,...second}=rows[1];assert.deepEqual(first,second);
+ assert.deepEqual(Object.keys(rows[0]),['number','date','description','category','code','amount']);
+});
+
 test('aggregate totals count invoices and add invoice amounts once',()=>{assert.deepEqual(totals([base(),{...base(),id:'second'}]),{gross:230000,tax:30000,net:200000,invoices:2});});
 test('legacy multiple items migrate to a general description without product names',()=>{const legacy={...base(),employee:'remove this',description:undefined,items:[{grossCents:69000,categoryCode:'TEST-1',description:'اسم منتج قديم 1',quantity:3},{grossCents:46000,categoryCode:'TEST-1',description:'اسم منتج قديم 2',quantity:2}]};const i=normalizeInvoice(legacy,testCategories);assert.equal(i.description,'مشتريات مواد كهرباء');assert.equal(i.grossCents,115000);assert.equal(i.taxCents,15000);assert.ok(!JSON.stringify(i).includes('اسم منتج'));assert.ok(!('items' in i));assert.ok(!('employee' in i));});
 test('legacy invoices split across categories require an overall category',()=>{const legacy={...base(),items:[{grossCents:69000,categoryCode:'TEST-1'},{grossCents:46000,categoryCode:'TEST-2'}]};const i=normalizeInvoice(legacy,testCategories);assert.equal(i.description,'مشتريات متنوعة');assert.equal(i.categoryCode,'');assert.equal(i.status,'review');assert.equal(i.grossCents,115000);});
-test('workspace migration removes obsolete fields and export columns and is idempotent',()=>{const old={...structuredClone(emptyWorkspace),schemaVersion:1,preferences:{...emptyWorkspace.preferences,employee:'obsolete',columns:['number','employee','quantity','description','gross']},invoices:[{...base(),employee:'obsolete',items:[{grossCents:115000,categoryCode:'TEST-1',description:'old item'}]}],categories:testCategories,revision:8};const clean=cleanWorkspace(old);assert.equal(clean.schemaVersion,3);assert.equal(clean.revision,8);assert.ok(!('employee' in clean.preferences));assert.ok(!('employee' in clean.invoices[0]));assert.deepEqual(clean.preferences.columns,['number','description','gross']);assert.equal(workspaceNeedsMigration(clean),false);assert.deepEqual(cleanWorkspace(clean),clean);assert.equal(old.preferences.employee,'obsolete');});
+test('workspace migration removes obsolete fields and export columns and is idempotent',()=>{const old={...structuredClone(emptyWorkspace),schemaVersion:1,preferences:{...emptyWorkspace.preferences,employee:'obsolete',columns:['number','employee','quantity','description','gross']},invoices:[{...base(),employee:'obsolete',items:[{grossCents:115000,categoryCode:'TEST-1',description:'old item'}]}],categories:testCategories,revision:8};const clean=cleanWorkspace(old);assert.equal(clean.schemaVersion,4);assert.equal(clean.revision,8);assert.ok(!('employee' in clean.preferences));assert.ok(!('employee' in clean.invoices[0]));assert.deepEqual(clean.preferences.columns,['number','description','amount']);assert.equal(workspaceNeedsMigration(clean),false);assert.deepEqual(cleanWorkspace(clean),clean);assert.equal(old.preferences.employee,'obsolete');});
 test('demo cleanup preserves real invoices and categories',()=>{const state={...structuredClone(emptyWorkspace),categories:testCategories,invoices:[{...base(),id:'demo-0'},base(),{...base(),id:'legacy',demo:true}]};const clean=cleanWorkspace(state);assert.deepEqual(clean.invoices,[base()]);assert.deepEqual(clean.categories,testCategories);});
 test('blank workspace remains empty with no person field',()=>{assert.equal(emptyWorkspace.invoices.length,0);assert.equal(emptyWorkspace.categories.length,0);assert.deepEqual(totals([]),{gross:0,tax:0,net:0,invoices:0});assert.ok(!('employee' in emptyWorkspace.preferences));});
 test('summary description and category are required, custodian is not',()=>{assert.deepEqual(invoiceProblems(base(),testCategories),[]);const i=base();i.description='';i.categoryCode='';const problems=invoiceProblems(i,testCategories);assert.ok(problems.some(p=>p.includes('وصف')));assert.ok(problems.some(p=>p.includes('تصنيف')));});
@@ -43,8 +49,8 @@ test('version 2 data permanently drops supplier and tax registration fields',()=
  const old={...structuredClone(emptyWorkspace),schemaVersion:2,categories:testCategories,preferences:{...emptyWorkspace.preferences,columns:['number','supplier','taxNumber','description','gross']},invoices:[{...base(),supplier:'old supplier',taxNumber:'123456789'}]};
  assert.equal(workspaceNeedsMigration(old),true);
  const clean=cleanWorkspace(old);
- assert.equal(clean.schemaVersion,3);
- assert.deepEqual(clean.preferences.columns,['number','description','gross']);
+ assert.equal(clean.schemaVersion,4);
+ assert.deepEqual(clean.preferences.columns,['number','description','amount']);
  assert.ok(!('supplier' in clean.invoices[0]));
  assert.ok(!('taxNumber' in clean.invoices[0]));
  assert.equal(clean.invoices[0].grossCents,115000);
@@ -55,7 +61,7 @@ test('version 2 data permanently drops supplier and tax registration fields',()=
 test('supplier and tax registration are absent from extraction, validation and exports',()=>{
  const invoice=base(),rows=exportRows([invoice],testCategories);
  assert.deepEqual(invoiceProblems(invoice,testCategories),[]);
- assert.equal(Object.keys(rows[0]).length,8);
+ assert.equal(Object.keys(rows[0]).length,6);
  assert.ok(!('supplier' in rows[0]));assert.ok(!('taxNumber' in rows[0]));
  const extracted=extractedSchema.parse({number:'1',date:'2026-10-25',description:'مشتريات عامة',categoryCode:'TEST-1',subtotalBeforeTax:1000,vatAmount:150,totalIncludingTax:1150,warnings:[],supplier:'removed',taxNumber:'removed'});
  assert.ok(!('supplier' in extracted));assert.ok(!('taxNumber' in extracted));
@@ -74,4 +80,24 @@ test('duplicate matching uses number, date and final amount without supplier',()
  assert.equal(duplicateCandidates({...invoice,date:'2026-10-24'},[base()]).length,0);
  assert.equal(duplicateCandidates({...invoice,grossCents:150000},[base()]).length,0);
  assert.equal(duplicateCandidates({...invoice,sourceHash:'same'},[{...base(),sourceHash:'same',date:'2026-10-24'}]).length,1);
+});
+
+test('only completed imports survive workspace cleanup, even after preview',()=>{
+ const draft={...base(),id:'previewed-only',status:'review' as const};
+ const state={...structuredClone(emptyWorkspace),schemaVersion:3,categories:testCategories,invoices:[base(),draft]};
+ const clean=cleanWorkspace(state);assert.deepEqual(clean.invoices,[base()]);assert.equal(workspaceNeedsMigration(state),true);
+ assert.deepEqual(cleanWorkspace(clean),clean);
+});
+test('the server workspace schema rejects unimported invoices',()=>{
+ assert.equal(workspaceSchema.safeParse({...emptyWorkspace,invoices:[{...base(),status:'review'}]}).success,false);
+});
+test('a full batch yields adjacent pairs for every invoice',()=>{
+ const invoices=Array.from({length:50},(_,n)=>({...base(),id:String(n),number:'N-'+n}));
+ const entries=invoiceEntries(invoices),rows=exportRows(invoices,testCategories);
+ assert.equal(rows.length,100);
+ for(let n=0;n<50;n++){assert.equal(entries[2*n].invoice.id,String(n));assert.equal(entries[2*n].kind,'net');assert.equal(entries[2*n+1].invoice.id,String(n));assert.equal(entries[2*n+1].kind,'tax');}
+});
+test('editing VAT row preserves the original net row and recomputes internal reconciliation',()=>{
+ const changed=editEntryAmount(base(),'tax',15005);assert.equal(changed.netCents,100000);assert.equal(changed.taxCents,15005);assert.equal(changed.grossCents,115005);
+ assert.deepEqual(exportRows([changed],testCategories).map(r=>r.amount),[1000,150.05]);
 });

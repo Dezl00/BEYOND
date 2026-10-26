@@ -1,8 +1,8 @@
-import {saveSource} from './storage';
+import {stageSource} from './storage';
 export type UploadJob={id:string;name:string;mime:string;bytes:ArrayBuffer;hash:string;page:number;status:'waiting'|'processing'|'done'|'error';error?:string};
-export async function prepareFiles(files:File[],retentionHours:number,onProgress:(s:string)=>void):Promise<UploadJob[]> {
+export async function prepareFiles(files:File[],retentionHours:number,onProgress:(s:string)=>void,signal?:AbortSignal):Promise<UploadJob[]> {
  const jobs:UploadJob[]=[];
- for(const file of files){
+ for(const file of files){signal?.throwIfAborted();
   if(file.size>25*1024*1024) throw new Error(file.name+': الحد الأقصى للملف 25 ميجابايت.');
   const bytes=await file.arrayBuffer();
   if(file.type==='application/pdf'||file.name.toLowerCase().endsWith('.pdf')){
@@ -11,19 +11,19 @@ export async function prepareFiles(files:File[],retentionHours:number,onProgress
    try{document=await PDFDocument.load(bytes);}catch{throw new Error('تعذر فتح '+file.name+'. تأكد أنه PDF سليم وغير محمي بكلمة مرور.');}
    if(jobs.length+document.getPageCount()>50) throw new Error('الدفعة الواحدة تدعم حتى 50 فاتورة / صفحة. قسّم الملفات إلى دفعات.');
    const originalHash=await sha256(bytes);
-   for(let p=0;p<document.getPageCount();p++){
+   for(let p=0;p<document.getPageCount();p++){signal?.throwIfAborted();
     onProgress('تجهيز '+file.name+' — صفحة '+(p+1));
     const one=await PDFDocument.create();const [page]=await one.copyPages(document,[p]);one.addPage(page);
     const split=await one.save(); const buffer=split.slice().buffer as ArrayBuffer;
     // Hash the original bytes and page index: PDF writers may add different metadata on repeated imports.
     const job:UploadJob={id:crypto.randomUUID(),name:file.name,mime:'application/pdf',bytes:buffer,hash:originalHash+':'+(p+1),page:p+1,status:'waiting'};
-    await saveSource(job.id,{bytes:buffer,mime:job.mime,name:job.name,expiresAt:Date.now()+retentionHours*3600000});jobs.push(job);
+    signal?.throwIfAborted();stageSource(job.id,{bytes:buffer,mime:job.mime,name:job.name,expiresAt:Date.now()+retentionHours*3600000});jobs.push(job);
    }
   }else{
    if(!['image/jpeg','image/png','image/webp'].includes(file.type)) throw new Error('صيغة غير مدعومة: '+file.name+'. استخدم JPG أو PNG أو WEBP أو PDF.');
    if(jobs.length>=50) throw new Error('الدفعة الواحدة تدعم حتى 50 فاتورة.');
    const job:UploadJob={id:crypto.randomUUID(),name:file.name,mime:file.type,bytes,hash:await sha256(bytes),page:1,status:'waiting'};
-   await saveSource(job.id,{bytes,mime:job.mime,name:job.name,expiresAt:Date.now()+retentionHours*3600000});jobs.push(job);
+   signal?.throwIfAborted();stageSource(job.id,{bytes,mime:job.mime,name:job.name,expiresAt:Date.now()+retentionHours*3600000});jobs.push(job);
   }
  }
  return jobs;

@@ -10,8 +10,8 @@ export const invoiceSchema=z.object({
  page:z.number().int().positive(),warnings:z.array(z.string().max(500)).max(30),duplicateReason:z.string().max(1000)
 });
 export const workspaceSchema=z.object({
- schemaVersion:z.literal(3).default(3),invoices:z.array(invoiceSchema).max(10000),categories:z.array(categorySchema).max(1000),revision:z.number().int().nonnegative(),
- preferences:z.object({company:z.string().max(100),retentionHours:z.number().int().min(1).max(8760),columns:z.array(z.string()).max(8)})
+ schemaVersion:z.literal(4).default(4),invoices:z.array(invoiceSchema.refine(invoice=>invoice.status==='approved','Only imported invoices can be saved')).max(10000),categories:z.array(categorySchema).max(1000),revision:z.number().int().nonnegative(),
+ preferences:z.object({company:z.string().max(100),retentionHours:z.number().int().min(1).max(8760),columns:z.array(z.string()).max(6)})
 });
 export const extractedSchema=z.object({
  number:z.string(),date:z.string(),description:z.string(),categoryCode:z.string(),

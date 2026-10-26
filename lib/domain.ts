@@ -7,14 +7,13 @@ export type Invoice={
  status:'review'|'approved';createdAt:string;sourceName:string;sourceHash:string;page:number;warnings:string[];duplicateReason:string;demo?:boolean;
 };
 export type Preferences={company:string;retentionHours:number;columns:string[]};
-export type Workspace={schemaVersion:3;invoices:Invoice[];categories:Category[];preferences:Preferences;revision:number};
+export type Workspace={schemaVersion:4;invoices:Invoice[];categories:Category[];preferences:Preferences;revision:number};
 export const columns=[
  {key:'number',label:'رقم الفاتورة'},{key:'date',label:'التاريخ'},
  {key:'description',label:'الوصف العام للفاتورة'},
- {key:'category',label:'التصنيف'},{key:'code',label:'الكود'},{key:'net',label:'قبل الضريبة'},
- {key:'tax',label:'الضريبة 15%'},{key:'gross',label:'الإجمالي النهائي'}
+ {key:'category',label:'التصنيف'},{key:'code',label:'الكود'},{key:'amount',label:'المبلغ'}
 ];
-export const emptyWorkspace:Workspace={schemaVersion:3,invoices:[],categories:[],revision:0,preferences:{company:'Beyond',retentionHours:24,columns:columns.map(c=>c.key)}};
+export const emptyWorkspace:Workspace={schemaVersion:4,invoices:[],categories:[],revision:0,preferences:{company:'Beyond',retentionHours:24,columns:columns.map(c=>c.key)}};
 export const roundCents=(value:number)=>Math.round((value+Number.EPSILON)*100);
 export const money=(cents:number)=>new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(cents/100);
 export const count=(value:number)=>new Intl.NumberFormat('en-US').format(value);
@@ -69,8 +68,14 @@ export function duplicateCandidates(invoice:Invoice,previous:Invoice[]){
  return previous.filter(p=>p.id!==invoice.id&&((!!invoice.sourceHash&&p.sourceHash===invoice.sourceHash)||(!!invoice.number.trim()&&p.number.trim().toLowerCase()===invoice.number.trim().toLowerCase()&&!!invoice.date&&p.date===invoice.date&&p.grossCents===invoice.grossCents)));
 }
 export function generalDescription(categoryCode:string,categories:Category[]){const name=categories.find(c=>c.code===categoryCode)?.name.trim();if(!name)return 'مشتريات متنوعة';return /^(مشتريات|مصروفات|خدمات|أعمال|توريد|صيانة|إيجار|نقل|شحن)/.test(name)?name:'مشتريات '+name;}
+export type EntryKind='net'|'tax';
+export function invoiceEntries(invoices:Invoice[]){return invoices.flatMap(invoice=>[{invoice,kind:'net' as const,amountCents:invoice.netCents},{invoice,kind:'tax' as const,amountCents:invoice.taxCents}]);}
+export function editEntryAmount(invoice:Invoice,kind:EntryKind,value:number):Invoice{
+ if(kind==='net')return editInvoiceAmount(invoice,'netCents',value);
+ return {...invoice,taxCents:value,grossCents:invoice.netCents+value,amountSource:'manual'};
+}
 export function exportRows(invoices:Invoice[],categories:Category[]){
- return invoices.map(i=>({number:i.number,date:i.date,description:i.description,category:categories.find(c=>c.code===i.categoryCode)?.name||'غير مصنف',code:i.categoryCode,net:i.netCents/100,tax:i.taxCents/100,gross:i.grossCents/100}));
+ return invoiceEntries(invoices).map(({invoice:i,amountCents})=>({number:i.number,date:i.date,description:i.description,category:categories.find(c=>c.code===i.categoryCode)?.name||'غير مصنف',code:i.categoryCode,amount:amountCents/100}));
 }
 export function parseCategories(text:string):Category[]{
  const result:Category[]=[];for(const line of text.split(/\r?\n/)){const parts=line.trim().split(/\t|[,،;]| \| /).map(s=>s.trim()).filter(Boolean);if(parts.length<2)continue;const code=parts[0],name=parts.slice(1).join(' ');if(code&&name&&!result.some(c=>c.code===code))result.push({code,name});}return result;
@@ -103,11 +108,11 @@ export function normalizeInvoice(input:unknown,categories:Category[]):Invoice{
 export function cleanWorkspace(input:unknown):Workspace{
  const value=input as Record<string,unknown>,preferences=(value.preferences||{}) as Record<string,unknown>;
  const categories=Array.isArray(value.categories)?value.categories as Category[]:[];
- const selected=Array.isArray(preferences.columns)?preferences.columns.filter((c):c is string=>typeof c==='string'&&columns.some(col=>col.key===c)):columns.map(c=>c.key);
- return {schemaVersion:3,invoices:(Array.isArray(value.invoices)?value.invoices:[]).filter(i=>!isDemoInvoice(i as Invoice)).map(i=>normalizeInvoice(i,categories)),categories,
+ const selected=Array.isArray(preferences.columns)?preferences.columns.flatMap(c=>typeof c==='string'?(c==='net'||c==='tax'||c==='gross'?['amount']:columns.some(col=>col.key===c)?[c]:[]):[]):columns.map(c=>c.key);
+ return {schemaVersion:4,invoices:(Array.isArray(value.invoices)?value.invoices:[]).filter(i=>!isDemoInvoice(i as Invoice)&&(i as Invoice).status==='approved').map(i=>({...normalizeInvoice(i,categories),status:'approved' as const})),categories,
  preferences:{company:string(preferences.company,'Beyond'),retentionHours:integer(preferences.retentionHours,24),columns:selected.length?[...new Set(selected)]:columns.map(c=>c.key)},revision:integer(value.revision)};
 }
 export function workspaceNeedsMigration(input:unknown):boolean{
  const value=input as Record<string,unknown>,preferences=(value.preferences||{}) as Record<string,unknown>;
- return value.schemaVersion!==3||'employee' in preferences||(Array.isArray(value.invoices)&&value.invoices.some(i=>'items' in i||'employee' in i||'supplier' in i||'taxNumber' in i||isDemoInvoice(i)))||(Array.isArray(preferences.columns)&&preferences.columns.some(c=>!columns.some(col=>col.key===c)));
+ return value.schemaVersion!==4||'employee' in preferences||(Array.isArray(value.invoices)&&value.invoices.some(i=>'items' in i||'employee' in i||'supplier' in i||'taxNumber' in i||i.status!=='approved'||isDemoInvoice(i)))||(Array.isArray(preferences.columns)&&preferences.columns.some(c=>!columns.some(col=>col.key===c)));
 }

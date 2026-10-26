@@ -11,7 +11,7 @@ const render=(manual=false)=>renderToStaticMarkup(createElement(Review,{
 }));
 test('category is editable immediately while bulk editing is closed',()=>{
  const html=render();
- const selector=html.match(/<select[^>]*aria-label="تصنيف الفاتورة TEST-001"[^>]*>/)?.[0];
+ const selector=html.match(/<select[^>]*aria-label="تصنيف الفاتورة TEST-001 قبل الضريبة"[^>]*>/)?.[0];
  assert.ok(selector,'Invoice category selector must be present');
  assert.ok(!selector.includes('disabled'));
  assert.ok(/readonly=""/i.test(html),'Other fields can stay in preview mode');
@@ -30,11 +30,20 @@ test('preview contains only requested invoice columns without lower panels or to
  assert.ok(headings.includes('رقم الفاتورة'));
  assert.ok(headings.includes('التاريخ'));
  assert.ok(headings.includes('التصنيف / الكود'));
- for(const removed of ['المورد','الرقم الضريبي','المبالغ المقروءة من الأصل','إعادة الحساب من هذه القيم','يحتاج انتباهك','hidden extraction note','review-footer','review-totals','حقل «قبل الضريبة»'])assert.ok(!html.includes(removed),removed);
+ for(const removed of ['حفظ للمراجعة','الإجمالي النهائي','المورد','الرقم الضريبي','المبالغ المقروءة من الأصل','إعادة الحساب من هذه القيم','يحتاج انتباهك','hidden extraction note','review-footer','review-totals','حقل «قبل الضريبة»'])assert.ok(!html.includes(removed),removed);
 });
 test('manual entry opens editable invoice fields and an enabled category selector',()=>{
  const html=render(true);
  assert.ok(!/readonly=""/i.test(html));
  assert.ok(html.includes('إنهاء التعديل'));
  assert.ok(!html.match(/<select[^>]*disabled/));
+});
+
+test('preview repeats invoice metadata in two rows and displays a single amount header',()=>{
+ const html=render();
+ assert.equal((html.match(/data-invoice-id="test-invoice"/g)||[]).length,2);
+ assert.equal((html.match(/<th>المبلغ<\/th>/g)||[]).length,1);
+ assert.ok(html.includes('data-entry-type="net"'));assert.ok(html.includes('data-entry-type="tax"'));
+ assert.ok(html.includes('1000.00'));assert.ok(html.includes('150.00'));assert.ok(!html.includes('1150.00'));
+ assert.ok(html.includes('استيراد كل الفواتير (1)'));assert.ok(!html.includes('حفظ للمراجعة'));
 });
