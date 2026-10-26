@@ -2,7 +2,7 @@ import {z} from 'zod';
 export const categorySchema=z.object({code:z.string().trim().min(1).max(80),name:z.string().trim().min(1).max(180)});
 const cents=z.number().int().nonnegative().max(100000000000);
 export const invoiceSchema=z.object({
- id:z.string().max(100),number:z.string().max(150),date:z.string().max(30),supplier:z.string().max(300),taxNumber:z.string().max(100),
+ id:z.string().max(100),number:z.string().max(150),date:z.string().max(30),
  description:z.string().max(1500),categoryCode:z.string().max(80),netCents:cents,taxCents:cents,grossCents:cents,
  amountSource:z.enum(['printed_total','derived_subtotal','gross_only','manual','needs_review','missing']),
  reportedSubtotalCents:cents.nullable(),reportedTaxCents:cents.nullable(),reportedTotalCents:cents.nullable(),
@@ -10,22 +10,22 @@ export const invoiceSchema=z.object({
  page:z.number().int().positive(),warnings:z.array(z.string().max(500)).max(30),duplicateReason:z.string().max(1000)
 });
 export const workspaceSchema=z.object({
- schemaVersion:z.literal(2).default(2),invoices:z.array(invoiceSchema).max(10000),categories:z.array(categorySchema).max(1000),revision:z.number().int().nonnegative(),
- preferences:z.object({company:z.string().max(100),retentionHours:z.number().int().min(1).max(8760),columns:z.array(z.string()).max(10)})
+ schemaVersion:z.literal(3).default(3),invoices:z.array(invoiceSchema).max(10000),categories:z.array(categorySchema).max(1000),revision:z.number().int().nonnegative(),
+ preferences:z.object({company:z.string().max(100),retentionHours:z.number().int().min(1).max(8760),columns:z.array(z.string()).max(8)})
 });
 export const extractedSchema=z.object({
- number:z.string(),date:z.string(),supplier:z.string(),taxNumber:z.string(),description:z.string(),categoryCode:z.string(),
+ number:z.string(),date:z.string(),description:z.string(),categoryCode:z.string(),
  subtotalBeforeTax:z.number().nonnegative().nullable(),vatAmount:z.number().nonnegative().nullable(),totalIncludingTax:z.number().nonnegative().nullable(),
  warnings:z.array(z.string())
 });
 export const extractionJsonSchema={
  type:'object',properties:{
-  number:{type:'string'},date:{type:'string'},supplier:{type:'string'},taxNumber:{type:'string'},
+  number:{type:'string'},date:{type:'string'},
   description:{type:'string',description:'One short general Arabic summary for the entire invoice. Never list individual products, quantities, or part numbers.'},
   categoryCode:{type:'string'},
   subtotalBeforeTax:{type:['number','null'],description:'Printed invoice-wide taxable net subtotal EXCLUDING VAT, AFTER invoice discounts. Never a per-item amount.'},
   vatAmount:{type:['number','null'],description:'Printed invoice-wide VAT amount, not a percentage.'},
   totalIncludingTax:{type:['number','null'],description:'Final invoice grand total INCLUDING VAT. Do not use a subtotal, taxable amount, unit price, amount paid, or remaining balance. Null if no inclusive grand total is clearly printed.'},
   warnings:{type:'array',items:{type:'string'}}
- },required:['number','date','supplier','taxNumber','description','categoryCode','subtotalBeforeTax','vatAmount','totalIncludingTax','warnings']
+ },required:['number','date','description','categoryCode','subtotalBeforeTax','vatAmount','totalIncludingTax','warnings']
 };

@@ -1,0 +1,40 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createElement} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+import Review from '../components/review';
+import {testInvoices,testCategories} from './fixtures/invoices';
+
+const render=(manual=false)=>renderToStaticMarkup(createElement(Review,{
+ initial:[{...testInvoices[0],sourceName:manual?'إدخال يدوي':'invoice.pdf',warnings:['hidden extraction note']}],
+ categories:testCategories,existing:[],onClose:()=>{},onSave:async()=>{}
+}));
+test('category is editable immediately while bulk editing is closed',()=>{
+ const html=render();
+ const selector=html.match(/<select[^>]*aria-label="تصنيف الفاتورة TEST-001"[^>]*>/)?.[0];
+ assert.ok(selector,'Invoice category selector must be present');
+ assert.ok(!selector.includes('disabled'));
+ assert.ok(/readonly=""/i.test(html),'Other fields can stay in preview mode');
+});
+test('review starts with the full-width table and optional images are collapsed',()=>{
+ const html=render();
+ assert.ok(html.includes('review-body table-only'));
+ assert.ok(html.includes('aria-expanded="false"'));
+ assert.ok(html.includes('إظهار صور الفواتير'));
+ assert.ok(!html.includes('<aside'));
+ assert.ok(!html.includes('<img'));
+});
+test('preview contains only requested invoice columns without lower panels or totals',()=>{
+ const html=render();
+ const headings=[...html.matchAll(/<th(?:\s[^>]*)?>(.*?)<\/th>/g)].map(m=>m[1]);
+ assert.ok(headings.includes('رقم الفاتورة'));
+ assert.ok(headings.includes('التاريخ'));
+ assert.ok(headings.includes('التصنيف / الكود'));
+ for(const removed of ['المورد','الرقم الضريبي','المبالغ المقروءة من الأصل','إعادة الحساب من هذه القيم','يحتاج انتباهك','hidden extraction note','review-footer','review-totals','حقل «قبل الضريبة»'])assert.ok(!html.includes(removed),removed);
+});
+test('manual entry opens editable invoice fields and an enabled category selector',()=>{
+ const html=render(true);
+ assert.ok(!/readonly=""/i.test(html));
+ assert.ok(html.includes('إنهاء التعديل'));
+ assert.ok(!html.match(/<select[^>]*disabled/));
+});
