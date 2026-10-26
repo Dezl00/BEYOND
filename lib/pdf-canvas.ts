@@ -4,7 +4,7 @@ type CellRow={lines:string[][];height:number;fontSize:number;index:number};
 export type PdfPage={rows:CellRow[]};
 export type CanvasFactory=()=>HTMLCanvasElement;
 const WIDTH=1122,HEIGHT=794,LEFT=42,RIGHT=1080,TOP=201,BOTTOM=727;
-const widths=[130,115,180,310,145,158];
+const widths=[148,560,150,90,90];
 const font=(size:number,bold=false)=>(bold?'600 ':'400 ')+size+'px BeyondArabic, Arial, sans-serif';
 function wrap(ctx:CanvasRenderingContext2D,value:string,width:number){
  const result:string[]=[];
@@ -26,9 +26,9 @@ export function layoutPdfPages(ctx:CanvasRenderingContext2D,records:RecordRow[])
   let size=14,lines:string[][]=[],height=0;
   do{
    ctx.font=font(size);
-   lines=exportColumns.map((column,n)=>wrap(ctx,column.key==='amount'?Number(record.amount).toFixed(2):String(record[column.key]||'—'),widths[n]-20));
+   lines=exportColumns.map((column,n)=>wrap(ctx,column.key==='debit'?Number(record.debit).toFixed(2):record[column.key]===null?'':String(record[column.key]??''),widths[n]-20));
    height=Math.max(54,Math.max(...lines.map(cell=>cell.length))*(size+6)+20);
-   if(height<=BOTTOM-TOP||size<=7)break;
+   if((height<=BOTTOM-TOP&&(size<=10||lines.every(cell=>cell.length<=1)))||size<=7)break;
    size--;
   }while(true);
   return {lines,height,fontSize:size,index};
@@ -49,7 +49,7 @@ export function paintPdfPage(canvas:HTMLCanvasElement,page:PdfPage,prefs:Prefere
  ctx.scale(2,2);ctx.fillStyle='#ffffff';ctx.fillRect(0,0,WIDTH,HEIGHT);
  ctx.textBaseline='top';ctx.direction='rtl';ctx.textAlign='right';ctx.fillStyle='#173569';ctx.font=font(28,true);
  let company=prefs.company;while(ctx.measureText(company).width>700&&company.length>1)company=company.slice(0,-1);ctx.fillText(company,RIGHT,38);
- ctx.font=font(18,true);ctx.fillText('كشف الفواتير',RIGHT,82);
+ ctx.font=font(18,true);ctx.fillText('جورنا الفواتير',RIGHT,82);
  ctx.font=font(12);ctx.fillStyle='#66758c';ctx.fillText(invoiceCount+' فاتورة · '+invoiceCount*2+' صف · ريال سعودي',RIGHT,116);
  ctx.direction='ltr';ctx.textAlign='left';ctx.fillText(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Riyadh'}).format(new Date()),LEFT,48);
  ctx.strokeStyle='#2458e6';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(LEFT,145);ctx.lineTo(RIGHT,145);ctx.stroke();
@@ -59,14 +59,14 @@ export function paintPdfPage(canvas:HTMLCanvasElement,page:PdfPage,prefs:Prefere
  for(const row of page.rows){
   edge=RIGHT;ctx.font=font(row.fontSize);ctx.fillStyle=Math.floor(row.index/2)%2===0?'#ffffff':'#f5f8fd';ctx.fillRect(LEFT,y,RIGHT-LEFT,row.height);
   for(let n=0;n<exportColumns.length;n++){
-   const x=edge-widths[n],numeric=['number','date','account','amount'].includes(exportColumns[n].key);
-   ctx.direction=numeric?'ltr':'rtl';ctx.textAlign=numeric?'left':'right';ctx.fillStyle=exportColumns[n].key==='amount'?'#173569':'#354b67';
+   const x=edge-widths[n],numeric=['account','debit','credit'].includes(exportColumns[n].key);
+   ctx.direction=numeric?'ltr':'rtl';ctx.textAlign=numeric?'left':'right';ctx.fillStyle=exportColumns[n].key==='debit'?'#173569':'#354b67';
    row.lines[n].forEach((line,k)=>ctx.fillText(line,numeric?x+10:edge-10,y+10+k*(row.fontSize+6)));
    edge=x;
   }
   y+=row.height;ctx.strokeStyle=row.index%2===1?'#b8ccec':'#e7ecf3';ctx.lineWidth=row.index%2===1?1.4:.6;ctx.beginPath();ctx.moveTo(LEFT,y);ctx.lineTo(RIGHT,y);ctx.stroke();
  }
  ctx.strokeStyle='#dce4ef';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(LEFT,751);ctx.lineTo(RIGHT,751);ctx.stroke();
- ctx.font=font(11);ctx.fillStyle='#78899f';ctx.direction='rtl';ctx.textAlign='right';ctx.fillText('صف للمبلغ قبل الضريبة، يليه صف الضريبة بنفس البيانات',RIGHT,764);
+ ctx.font=font(11);ctx.fillStyle='#78899f';ctx.direction='rtl';ctx.textAlign='right';ctx.fillText('Account · Lable · Analtic Account · Debit · Credit',RIGHT,764);
  ctx.direction='ltr';ctx.textAlign='left';ctx.fillText(pageNumber+' / '+pageCount,LEFT,764);
 }

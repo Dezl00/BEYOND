@@ -9,8 +9,8 @@ export type Invoice={
 export type Preferences={company:string;retentionHours:number};
 export type Workspace={schemaVersion:5;invoices:Invoice[];categories:Category[];preferences:Preferences;revision:number};
 export const exportColumns=[
- {key:'number',label:'رقم الفاتورة'},{key:'date',label:'التاريخ'},{key:'supplier',label:'اسم المورد'},
- {key:'description',label:'الوصف العام للفاتورة'},{key:'account',label:'الحساب'},{key:'amount',label:'المبلغ'}
+ {key:'account',label:'Account'},{key:'label',label:'Lable'},{key:'analyticAccount',label:'Analtic Account'},
+ {key:'debit',label:'Debit'},{key:'credit',label:'Credit'}
 ] as const;
 export const emptyWorkspace:Workspace={schemaVersion:5,invoices:[],categories:[],revision:0,preferences:{company:'Beyond',retentionHours:24}};
 export const roundCents=(value:number)=>Math.round((value+Number.EPSILON)*100);
@@ -50,7 +50,6 @@ export function invoiceProblems(invoice:Invoice,categories:Category[]){
  const problems:string[]=[];
  if(!invoice.number.trim())problems.push('رقم الفاتورة غير مكتمل');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(invoice.date)||Number.isNaN(Date.parse(invoice.date+'T12:00:00Z'))||new Date(invoice.date+'T12:00:00Z').toISOString().slice(0,10)!==invoice.date)problems.push('تاريخ الفاتورة غير مكتمل');
- if(!invoice.description.trim())problems.push('اكتب وصفًا عامًا للفاتورة');
  if(!categories.some(c=>c.code===invoice.categoryCode))problems.push('اختر التصنيف العام للفاتورة');
  if(![invoice.netCents,invoice.taxCents,invoice.grossCents].every(n=>Number.isSafeInteger(n)&&n>=0&&n<=100000000000)||invoice.grossCents<=0)problems.push('راجع مبالغ الفاتورة');
  if(!near(invoice.netCents+invoice.taxCents,invoice.grossCents))problems.push('قبل الضريبة + الضريبة لا يساوي الإجمالي النهائي');
@@ -73,8 +72,22 @@ export function editEntryAmount(invoice:Invoice,kind:EntryKind,value:number):Inv
  if(kind==='net')return editInvoiceAmount(invoice,'netCents',value);
  return {...invoice,taxCents:value,grossCents:invoice.netCents+value,amountSource:'manual'};
 }
-export function exportRows(invoices:Invoice[]){
- return invoiceEntries(invoices).map(({invoice:i,amountCents})=>({number:i.number,date:i.date,supplier:i.supplier,description:i.description,account:i.categoryCode,amount:amountCents/100}));
+const journalText=(value:string)=>value.replace(/\s+/g,' ').trim();
+export function journalDate(value:string){
+ const match=value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ return match?match[3]+'/'+match[2]+'/'+match[1]:journalText(value);
+}
+export function journalLabel(invoice:Invoice,categories:Category[],kind:EntryKind='net'){
+ const supplier=journalText(invoice.supplier),number=journalText(invoice.number),date=journalDate(invoice.date);
+ const category=journalText(categories.find(c=>c.code===invoice.categoryCode)?.name||'');
+ const label=[supplier,number?'فاتورة رقم '+number:'',date?'بتاريخ '+date:'',category].filter(Boolean).join(' ');
+ return kind==='tax'?['قيمة مضافة',label].filter(Boolean).join(' '):label;
+}
+export function exportRows(invoices:Invoice[],categories:Category[]){
+ return invoiceEntries(invoices).map(({invoice,kind,amountCents})=>({
+  account:invoice.categoryCode,label:journalLabel(invoice,categories,kind),analyticAccount:null,
+  debit:amountCents/100,credit:null
+ }));
 }
 export function parseCategories(text:string):Category[]{
  const result:Category[]=[];for(const line of text.split(/\r?\n/)){const parts=line.trim().split(/\t|[,،;]| \| /).map(s=>s.trim()).filter(Boolean);if(parts.length<2)continue;const code=parts[0],name=parts.slice(1).join(' ');if(code&&name&&!result.some(c=>c.code===code))result.push({code,name});}return result;
