@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import Review from '../components/review';
+import {emptyWorkspace} from '../lib/domain';
 import {testInvoices,testCategories} from './fixtures/invoices';
 
 const render=(manual=false)=>renderToStaticMarkup(createElement(Review,{
  initial:[{...testInvoices[0],sourceName:manual?'إدخال يدوي':'invoice.pdf',warnings:['hidden extraction note']}],
- categories:testCategories,existing:[],onClose:()=>{},onSave:async()=>{}
+ categories:testCategories,preferences:emptyWorkspace.preferences,existing:[],onClose:()=>{},onSave:async()=>{}
 }));
 test('category is editable immediately while bulk editing is closed',()=>{
  const html=render();
@@ -30,7 +31,7 @@ test('preview contains only requested invoice columns without lower panels or to
  assert.ok(headings.includes('رقم الفاتورة'));
  assert.ok(headings.includes('التاريخ'));
  assert.ok(headings.includes('التصنيف / الكود'));
- for(const removed of ['حفظ للمراجعة','الإجمالي النهائي','المورد','الرقم الضريبي','المبالغ المقروءة من الأصل','إعادة الحساب من هذه القيم','يحتاج انتباهك','hidden extraction note','review-footer','review-totals','حقل «قبل الضريبة»'])assert.ok(!html.includes(removed),removed);
+ for(const removed of ['حفظ للمراجعة','الإجمالي النهائي','الرقم الضريبي','المبالغ المقروءة من الأصل','إعادة الحساب من هذه القيم','يحتاج انتباهك','hidden extraction note','review-footer','review-totals','حقل «قبل الضريبة»'])assert.ok(!html.includes(removed),removed);
 });
 test('manual entry opens editable invoice fields and an enabled category selector',()=>{
  const html=render(true);
@@ -46,4 +47,10 @@ test('preview repeats invoice metadata in two rows and displays a single amount 
  assert.ok(html.includes('data-entry-type="net"'));assert.ok(html.includes('data-entry-type="tax"'));
  assert.ok(html.includes('1000.00'));assert.ok(html.includes('150.00'));assert.ok(!html.includes('1150.00'));
  assert.ok(html.includes('استيراد كل الفواتير (1)'));assert.ok(!html.includes('حفظ للمراجعة'));
+});
+
+test('review includes supplier in both rows and direct Excel/PDF export without column selection',()=>{
+ const html=render();assert.ok(html.includes('اسم المورد'));assert.ok(html.includes('مؤسسة الاختبار للتوريدات'));
+ assert.ok(html.includes('Excel'));assert.ok(html.includes('PDF'));assert.ok(html.includes('تصدير مباشر'));
+ assert.ok(!html.includes('الأعمدة وترتيبها'));assert.ok(!html.includes('اختيار الكل'));
 });

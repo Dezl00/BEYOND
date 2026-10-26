@@ -18,23 +18,23 @@ test('editing net adds VAT while editing final extracts VAT',()=>{const net=edit
 test('printed tax rounding is preserved with a visible warning instead of recomputing printed values',()=>{const i={...base(),...printed(100000,15005,115005),...amountsFromPrinted(printed(100000,15005,115005))};assert.equal(i.taxCents,15005);assert.deepEqual(invoiceProblems(i,testCategories),[]);assert.equal(invoiceAmountWarnings(i).length,1);});
 test('contradictory printed amounts are blocked before approval',()=>{const i={...base(),...printed(90000,15000,115000),...amountsFromPrinted(printed(90000,15000,115000))};assert.ok(invoiceProblems(i,testCategories).some(p=>p.includes('قبل الضريبة')));});
 test('each invoice exports net then VAT with identical metadata and one amount column',()=>{
- const rows=exportRows([base()],testCategories);
+ const rows=exportRows([base()]);
  assert.equal(rows.length,2);assert.deepEqual(rows.map(r=>r.amount),[1000,150]);
  const {amount:net,...first}=rows[0],{amount:vat,...second}=rows[1];assert.deepEqual(first,second);
- assert.deepEqual(Object.keys(rows[0]),['number','date','description','category','code','amount']);
+ assert.deepEqual(Object.keys(rows[0]),['number','date','supplier','description','account','amount']);
 });
 
 test('aggregate totals count invoices and add invoice amounts once',()=>{assert.deepEqual(totals([base(),{...base(),id:'second'}]),{gross:230000,tax:30000,net:200000,invoices:2});});
 test('legacy multiple items migrate to a general description without product names',()=>{const legacy={...base(),employee:'remove this',description:undefined,items:[{grossCents:69000,categoryCode:'TEST-1',description:'اسم منتج قديم 1',quantity:3},{grossCents:46000,categoryCode:'TEST-1',description:'اسم منتج قديم 2',quantity:2}]};const i=normalizeInvoice(legacy,testCategories);assert.equal(i.description,'مشتريات مواد كهرباء');assert.equal(i.grossCents,115000);assert.equal(i.taxCents,15000);assert.ok(!JSON.stringify(i).includes('اسم منتج'));assert.ok(!('items' in i));assert.ok(!('employee' in i));});
 test('legacy invoices split across categories require an overall category',()=>{const legacy={...base(),items:[{grossCents:69000,categoryCode:'TEST-1'},{grossCents:46000,categoryCode:'TEST-2'}]};const i=normalizeInvoice(legacy,testCategories);assert.equal(i.description,'مشتريات متنوعة');assert.equal(i.categoryCode,'');assert.equal(i.status,'review');assert.equal(i.grossCents,115000);});
-test('workspace migration removes obsolete fields and export columns and is idempotent',()=>{const old={...structuredClone(emptyWorkspace),schemaVersion:1,preferences:{...emptyWorkspace.preferences,employee:'obsolete',columns:['number','employee','quantity','description','gross']},invoices:[{...base(),employee:'obsolete',items:[{grossCents:115000,categoryCode:'TEST-1',description:'old item'}]}],categories:testCategories,revision:8};const clean=cleanWorkspace(old);assert.equal(clean.schemaVersion,4);assert.equal(clean.revision,8);assert.ok(!('employee' in clean.preferences));assert.ok(!('employee' in clean.invoices[0]));assert.deepEqual(clean.preferences.columns,['number','description','amount']);assert.equal(workspaceNeedsMigration(clean),false);assert.deepEqual(cleanWorkspace(clean),clean);assert.equal(old.preferences.employee,'obsolete');});
+test('workspace migration removes obsolete fields and export columns and is idempotent',()=>{const old={...structuredClone(emptyWorkspace),schemaVersion:1,preferences:{...emptyWorkspace.preferences,employee:'obsolete',columns:['number','employee','quantity','description','gross']},invoices:[{...base(),employee:'obsolete',items:[{grossCents:115000,categoryCode:'TEST-1',description:'old item'}]}],categories:testCategories,revision:8};const clean=cleanWorkspace(old);assert.equal(clean.schemaVersion,5);assert.equal(clean.revision,8);assert.ok(!('employee' in clean.preferences));assert.ok(!('employee' in clean.invoices[0]));assert.ok(!('columns' in clean.preferences));assert.equal(workspaceNeedsMigration(clean),false);assert.deepEqual(cleanWorkspace(clean),clean);assert.equal(old.preferences.employee,'obsolete');});
 test('demo cleanup preserves real invoices and categories',()=>{const state={...structuredClone(emptyWorkspace),categories:testCategories,invoices:[{...base(),id:'demo-0'},base(),{...base(),id:'legacy',demo:true}]};const clean=cleanWorkspace(state);assert.deepEqual(clean.invoices,[base()]);assert.deepEqual(clean.categories,testCategories);});
 test('blank workspace remains empty with no person field',()=>{assert.equal(emptyWorkspace.invoices.length,0);assert.equal(emptyWorkspace.categories.length,0);assert.deepEqual(totals([]),{gross:0,tax:0,net:0,invoices:0});assert.ok(!('employee' in emptyWorkspace.preferences));});
 test('summary description and category are required, custodian is not',()=>{assert.deepEqual(invoiceProblems(base(),testCategories),[]);const i=base();i.description='';i.categoryCode='';const problems=invoiceProblems(i,testCategories);assert.ok(problems.some(p=>p.includes('وصف')));assert.ok(problems.some(p=>p.includes('تصنيف')));});
 test('invalid calendar dates and wrong monetary totals are rejected',()=>{const i=base();i.date='2026-02-31';i.grossCents=500;assert.ok(invoiceProblems(i,testCategories).some(p=>p.includes('تاريخ')));assert.ok(invoiceProblems(i,testCategories).some(p=>p.includes('الإجمالي')));});
 test('duplicates compare the invoice final amount and exclude the same record',()=>{assert.equal(duplicateCandidates({...base(),id:'new'},[base()]).length,1);assert.equal(duplicateCandidates(base(),[base()]).length,0);});
 test('category codes retain leading zeros',()=>{assert.deepEqual(parseCategories('00101\tمواد كهرباء\n00102, مواد سباكة\n00101, مكرر'),[{code:'00101',name:'مواد كهرباء'},{code:'00102',name:'مواد سباكة'}]);});
-test('extraction requires explicit before-tax and inclusive-total field names',()=>{assert.equal(extractedSchema.safeParse({number:'1',date:'2026-10-25',description:'مشتريات عامة',categoryCode:'TEST-1',subtotalBeforeTax:1000,vatAmount:150,totalIncludingTax:1150,warnings:[]}).success,true);assert.equal(extractedSchema.safeParse({number:'1',date:'2026-10-25',total:1000,tax:150,items:[]}).success,false);});
+test('extraction requires explicit before-tax and inclusive-total field names',()=>{assert.equal(extractedSchema.safeParse({number:'1',date:'2026-10-25',description:'مشتريات عامة',categoryCode:'TEST-1',supplier:'مورد اختبار',handwrittenCategory:'',handwrittenCategoryCode:'',subtotalBeforeTax:1000,vatAmount:150,totalIncludingTax:1150,warnings:[]}).success,true);assert.equal(extractedSchema.safeParse({number:'1',date:'2026-10-25',total:1000,tax:150,items:[]}).success,false);});
 test('saved workspace schema contains invoice-level fields only',()=>{const parsed=workspaceSchema.parse({...emptyWorkspace,categories:testCategories,invoices:[{...base(),employee:'not persisted'}]});assert.ok(!('employee' in parsed.invoices[0]));assert.equal(parsed.invoices[0].grossCents,115000);});
 
 test('AI summaries use the overall category without listing individual products',()=>{assert.equal(generalDescription('TEST-1',testCategories),'مشتريات مواد كهرباء');assert.equal(generalDescription('GENERAL',[{code:'GENERAL',name:'مشتريات صيانة'}]),'مشتريات صيانة');});
@@ -45,26 +45,26 @@ test('impossible extracted amounts stay reviewable without negative stored amoun
 
 test('legacy pre-tax totals mistakenly stored as final are migrated into review',()=>{const legacy={...base(),reportedSubtotalCents:undefined,reportedTaxCents:15000,reportedTotalCents:100000,items:[{grossCents:100000,categoryCode:'TEST-1'}]};const next=normalizeInvoice(legacy,testCategories);assert.equal(next.netCents,100000);assert.equal(next.taxCents,15000);assert.equal(next.grossCents,115000);assert.equal(next.status,'review');assert.equal(next.amountSource,'needs_review');});
 
-test('version 2 data permanently drops supplier and tax registration fields',()=>{
+test('legacy data retains supplier, removes tax registration and old export preferences',()=>{
  const old={...structuredClone(emptyWorkspace),schemaVersion:2,categories:testCategories,preferences:{...emptyWorkspace.preferences,columns:['number','supplier','taxNumber','description','gross']},invoices:[{...base(),supplier:'old supplier',taxNumber:'123456789'}]};
  assert.equal(workspaceNeedsMigration(old),true);
  const clean=cleanWorkspace(old);
- assert.equal(clean.schemaVersion,4);
- assert.deepEqual(clean.preferences.columns,['number','description','amount']);
- assert.ok(!('supplier' in clean.invoices[0]));
+ assert.equal(clean.schemaVersion,5);
+ assert.ok(!('columns' in clean.preferences));
+ assert.equal(clean.invoices[0].supplier,'old supplier');
  assert.ok(!('taxNumber' in clean.invoices[0]));
  assert.equal(clean.invoices[0].grossCents,115000);
  assert.equal(clean.invoices[0].date,old.invoices[0].date);
  assert.deepEqual(cleanWorkspace(clean),clean);
  assert.equal(workspaceNeedsMigration(clean),false);
 });
-test('supplier and tax registration are absent from extraction, validation and exports',()=>{
- const invoice=base(),rows=exportRows([invoice],testCategories);
+test('supplier and fixed account-code exports are supported without tax registration',()=>{
+ const invoice=base(),rows=exportRows([invoice]);
  assert.deepEqual(invoiceProblems(invoice,testCategories),[]);
  assert.equal(Object.keys(rows[0]).length,6);
- assert.ok(!('supplier' in rows[0]));assert.ok(!('taxNumber' in rows[0]));
- const extracted=extractedSchema.parse({number:'1',date:'2026-10-25',description:'مشتريات عامة',categoryCode:'TEST-1',subtotalBeforeTax:1000,vatAmount:150,totalIncludingTax:1150,warnings:[],supplier:'removed',taxNumber:'removed'});
- assert.ok(!('supplier' in extracted));assert.ok(!('taxNumber' in extracted));
+ assert.equal(rows[0].supplier,invoice.supplier);assert.equal(rows[0].account,invoice.categoryCode);assert.ok(!('category' in rows[0]));assert.ok(!('code' in rows[0]));assert.ok(!('taxNumber' in rows[0]));
+ const extracted=extractedSchema.parse({number:'1',date:'2026-10-25',description:'مشتريات عامة',categoryCode:'TEST-1',subtotalBeforeTax:1000,vatAmount:150,totalIncludingTax:1150,warnings:[],supplier:'removed',handwrittenCategory:'',handwrittenCategoryCode:'',taxNumber:'removed'});
+ assert.equal(extracted.supplier,'removed');assert.ok(!('taxNumber' in extracted));
 });
 test('manual amount corrections can be approved without editing hidden source evidence',()=>{
  const invoice={...base(),reportedSubtotalCents:90000,reportedTaxCents:12000,reportedTotalCents:100000,amountSource:'needs_review' as const};
@@ -93,11 +93,11 @@ test('the server workspace schema rejects unimported invoices',()=>{
 });
 test('a full batch yields adjacent pairs for every invoice',()=>{
  const invoices=Array.from({length:50},(_,n)=>({...base(),id:String(n),number:'N-'+n}));
- const entries=invoiceEntries(invoices),rows=exportRows(invoices,testCategories);
+ const entries=invoiceEntries(invoices),rows=exportRows(invoices);
  assert.equal(rows.length,100);
  for(let n=0;n<50;n++){assert.equal(entries[2*n].invoice.id,String(n));assert.equal(entries[2*n].kind,'net');assert.equal(entries[2*n+1].invoice.id,String(n));assert.equal(entries[2*n+1].kind,'tax');}
 });
 test('editing VAT row preserves the original net row and recomputes internal reconciliation',()=>{
  const changed=editEntryAmount(base(),'tax',15005);assert.equal(changed.netCents,100000);assert.equal(changed.taxCents,15005);assert.equal(changed.grossCents,115005);
- assert.deepEqual(exportRows([changed],testCategories).map(r=>r.amount),[1000,150.05]);
+ assert.deepEqual(exportRows([changed]).map(r=>r.amount),[1000,150.05]);
 });

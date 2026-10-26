@@ -1,19 +1,18 @@
 export type Category={code:string;name:string};
 export type AmountSource='printed_total'|'derived_subtotal'|'gross_only'|'manual'|'needs_review'|'missing';
 export type Invoice={
- id:string;number:string;date:string;
+ id:string;number:string;date:string;supplier:string;
  description:string;categoryCode:string;netCents:number;taxCents:number;grossCents:number;amountSource:AmountSource;
  reportedSubtotalCents:number|null;reportedTaxCents:number|null;reportedTotalCents:number|null;
  status:'review'|'approved';createdAt:string;sourceName:string;sourceHash:string;page:number;warnings:string[];duplicateReason:string;demo?:boolean;
 };
-export type Preferences={company:string;retentionHours:number;columns:string[]};
-export type Workspace={schemaVersion:4;invoices:Invoice[];categories:Category[];preferences:Preferences;revision:number};
-export const columns=[
- {key:'number',label:'رقم الفاتورة'},{key:'date',label:'التاريخ'},
- {key:'description',label:'الوصف العام للفاتورة'},
- {key:'category',label:'التصنيف'},{key:'code',label:'الكود'},{key:'amount',label:'المبلغ'}
-];
-export const emptyWorkspace:Workspace={schemaVersion:4,invoices:[],categories:[],revision:0,preferences:{company:'Beyond',retentionHours:24,columns:columns.map(c=>c.key)}};
+export type Preferences={company:string;retentionHours:number};
+export type Workspace={schemaVersion:5;invoices:Invoice[];categories:Category[];preferences:Preferences;revision:number};
+export const exportColumns=[
+ {key:'number',label:'رقم الفاتورة'},{key:'date',label:'التاريخ'},{key:'supplier',label:'اسم المورد'},
+ {key:'description',label:'الوصف العام للفاتورة'},{key:'account',label:'الحساب'},{key:'amount',label:'المبلغ'}
+] as const;
+export const emptyWorkspace:Workspace={schemaVersion:5,invoices:[],categories:[],revision:0,preferences:{company:'Beyond',retentionHours:24}};
 export const roundCents=(value:number)=>Math.round((value+Number.EPSILON)*100);
 export const money=(cents:number)=>new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(cents/100);
 export const count=(value:number)=>new Intl.NumberFormat('en-US').format(value);
@@ -65,7 +64,7 @@ export function invoiceProblems(invoice:Invoice,categories:Category[]){
 }
 export function invoiceAmountWarnings(invoice:Invoice){return near(invoice.taxCents,taxFromExclusive(invoice.netCents))?[]:['الضريبة المكتوبة تختلف عن حساب 15%؛ راجع النسبة أو فروق التقريب في الأصل. تم الاحتفاظ بالمبالغ المكتوبة.'];}
 export function duplicateCandidates(invoice:Invoice,previous:Invoice[]){
- return previous.filter(p=>p.id!==invoice.id&&((!!invoice.sourceHash&&p.sourceHash===invoice.sourceHash)||(!!invoice.number.trim()&&p.number.trim().toLowerCase()===invoice.number.trim().toLowerCase()&&!!invoice.date&&p.date===invoice.date&&p.grossCents===invoice.grossCents)));
+ return previous.filter(p=>p.id!==invoice.id&&((!!invoice.sourceHash&&p.sourceHash===invoice.sourceHash)||(!!invoice.number.trim()&&p.number.trim().toLowerCase()===invoice.number.trim().toLowerCase()&&!!invoice.date&&p.date===invoice.date&&(!p.supplier||!invoice.supplier||p.supplier.trim().toLowerCase()===invoice.supplier.trim().toLowerCase())&&p.grossCents===invoice.grossCents)));
 }
 export function generalDescription(categoryCode:string,categories:Category[]){const name=categories.find(c=>c.code===categoryCode)?.name.trim();if(!name)return 'مشتريات متنوعة';return /^(مشتريات|مصروفات|خدمات|أعمال|توريد|صيانة|إيجار|نقل|شحن)/.test(name)?name:'مشتريات '+name;}
 export type EntryKind='net'|'tax';
@@ -74,8 +73,8 @@ export function editEntryAmount(invoice:Invoice,kind:EntryKind,value:number):Inv
  if(kind==='net')return editInvoiceAmount(invoice,'netCents',value);
  return {...invoice,taxCents:value,grossCents:invoice.netCents+value,amountSource:'manual'};
 }
-export function exportRows(invoices:Invoice[],categories:Category[]){
- return invoiceEntries(invoices).map(({invoice:i,amountCents})=>({number:i.number,date:i.date,description:i.description,category:categories.find(c=>c.code===i.categoryCode)?.name||'غير مصنف',code:i.categoryCode,amount:amountCents/100}));
+export function exportRows(invoices:Invoice[]){
+ return invoiceEntries(invoices).map(({invoice:i,amountCents})=>({number:i.number,date:i.date,supplier:i.supplier,description:i.description,account:i.categoryCode,amount:amountCents/100}));
 }
 export function parseCategories(text:string):Category[]{
  const result:Category[]=[];for(const line of text.split(/\r?\n/)){const parts=line.trim().split(/\t|[,،;]| \| /).map(s=>s.trim()).filter(Boolean);if(parts.length<2)continue;const code=parts[0],name=parts.slice(1).join(' ');if(code&&name&&!result.some(c=>c.code===code))result.push({code,name});}return result;
@@ -97,7 +96,7 @@ export function normalizeInvoice(input:unknown,categories:Category[]):Invoice{
  const warnings=Array.isArray(value.warnings)?value.warnings.filter((s):s is string=>typeof s==='string'):[];
  if(legacy&&codes.length>1)warnings.push('الفاتورة كانت موزعة على أكثر من تصنيف؛ اختر تصنيفًا عامًا واحدًا.');
  return {
-  id:string(value.id),number:string(value.number),date:string(value.date),
+  id:string(value.id),number:string(value.number),date:string(value.date),supplier:string(value.supplier),
   description:legacy?generalDescription(category,categories):string(value.description),categoryCode:category,
   netCents:legacy?derived.netCents:integer(value.netCents),taxCents:legacy?derived.taxCents:integer(value.taxCents),grossCents:legacy?derived.grossCents:integer(value.grossCents),amountSource,
   ...printed,status:value.status==='approved'&&amountSource!=='needs_review'&&(!legacy||codes.length<=1)?'approved':'review',
@@ -108,11 +107,10 @@ export function normalizeInvoice(input:unknown,categories:Category[]):Invoice{
 export function cleanWorkspace(input:unknown):Workspace{
  const value=input as Record<string,unknown>,preferences=(value.preferences||{}) as Record<string,unknown>;
  const categories=Array.isArray(value.categories)?value.categories as Category[]:[];
- const selected=Array.isArray(preferences.columns)?preferences.columns.flatMap(c=>typeof c==='string'?(c==='net'||c==='tax'||c==='gross'?['amount']:columns.some(col=>col.key===c)?[c]:[]):[]):columns.map(c=>c.key);
- return {schemaVersion:4,invoices:(Array.isArray(value.invoices)?value.invoices:[]).filter(i=>!isDemoInvoice(i as Invoice)&&(i as Invoice).status==='approved').map(i=>({...normalizeInvoice(i,categories),status:'approved' as const})),categories,
- preferences:{company:string(preferences.company,'Beyond'),retentionHours:integer(preferences.retentionHours,24),columns:selected.length?[...new Set(selected)]:columns.map(c=>c.key)},revision:integer(value.revision)};
+ return {schemaVersion:5,invoices:(Array.isArray(value.invoices)?value.invoices:[]).filter(i=>!isDemoInvoice(i as Invoice)&&(i as Invoice).status==='approved').map(i=>({...normalizeInvoice(i,categories),status:'approved' as const})),categories,
+ preferences:{company:string(preferences.company,'Beyond'),retentionHours:integer(preferences.retentionHours,24)},revision:integer(value.revision)};
 }
 export function workspaceNeedsMigration(input:unknown):boolean{
  const value=input as Record<string,unknown>,preferences=(value.preferences||{}) as Record<string,unknown>;
- return value.schemaVersion!==4||'employee' in preferences||(Array.isArray(value.invoices)&&value.invoices.some(i=>'items' in i||'employee' in i||'supplier' in i||'taxNumber' in i||i.status!=='approved'||isDemoInvoice(i)))||(Array.isArray(preferences.columns)&&preferences.columns.some(c=>!columns.some(col=>col.key===c)));
+ return value.schemaVersion!==5||'employee' in preferences||'columns' in preferences||(Array.isArray(value.invoices)&&value.invoices.some(i=>'items' in i||'employee' in i||'taxNumber' in i||i.status!=='approved'||isDemoInvoice(i)));
 }

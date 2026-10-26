@@ -1,0 +1,14 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {resolveExtractedCategory,nextCategoryCode} from '../lib/categories';
+const known=[{code:'005101',name:'مواد كهرباء'},{code:'005102',name:'مواد سباكة'}];
+const read=(handwrittenCategory='',handwrittenCategoryCode='',categoryCode='005101')=>({handwrittenCategory,handwrittenCategoryCode,categoryCode});
+test('handwritten category takes priority over inferred product category',()=>{assert.equal(resolveExtractedCategory(read('مواد سباكة'),known).category?.code,'005102');});
+test('readable handwriting matches existing names after spaces and diacritics',()=>{const r=resolveExtractedCategory(read('مواد سَبَاكة'),known);assert.equal(r.created,false);assert.equal(r.category?.code,'005102');});
+test('a new handwritten name gets a unique automatic code with existing padding',()=>{const r=resolveExtractedCategory(read('نظافة الموقع'),known);assert.equal(r.created,true);assert.deepEqual(r.category,{name:'نظافة الموقع',code:'005103'});assert.equal(known.length,2);});
+test('an explicitly handwritten new code is preserved including leading zeros',()=>{assert.equal(resolveExtractedCategory(read('أدوات مكتبية','٠٠٨٠١'),known).category?.code,'00801');});
+test('a conflicting handwritten code cannot overwrite an existing account',()=>{const r=resolveExtractedCategory(read('أدوات مكتبية','005101'),known);assert.equal(r.category?.code,'005103');assert.equal(known[0].name,'مواد كهرباء');});
+test('repeated handwritten new names in a batch reuse the first created category',()=>{const first=resolveExtractedCategory(read('مصاريف نقل'),known);const second=resolveExtractedCategory(read('مصاريف  نقل'),[...known,first.category!]);assert.equal(second.created,false);assert.equal(second.category?.code,first.category?.code);});
+test('a known handwritten code without a name selects the existing category',()=>{assert.equal(resolveExtractedCategory(read('','٠٠٥١٠٢'),known).category?.code,'005102');});
+test('without readable handwriting only an approved inferred code can be used',()=>{assert.equal(resolveExtractedCategory(read('','','unknown'),known).category,null);assert.equal(resolveExtractedCategory(read(),known).created,false);});
+test('new codes remain unique with empty or alphanumeric account lists',()=>{assert.equal(nextCategoryCode([]),'AUTO-001');assert.equal(nextCategoryCode([{code:'AUTO-001',name:'one'}]),'AUTO-002');});

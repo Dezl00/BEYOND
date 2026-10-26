@@ -34,7 +34,7 @@ test('saving preferences cannot persist unimported invoices',async()=>{
 test('loading old stored drafts removes them permanently without changing imported invoice amounts',async()=>{
  database.set('beyond-workspace-v1',{...structuredClone(emptyWorkspace),schemaVersion:3,categories:testCategories,invoices:[testInvoices[0],{...testInvoices[0],id:'old-draft',status:'review'}]});
  const saved=await loadWorkspace();
- assert.equal(saved.schemaVersion,4);assert.equal(saved.invoices.length,1);
+ assert.equal(saved.schemaVersion,5);assert.equal(saved.invoices.length,1);
  assert.equal(saved.invoices[0].netCents,100000);assert.equal(saved.invoices[0].taxCents,15000);
  assert.equal(database.get('beyond-workspace-v1').invoices.length,1);
 });

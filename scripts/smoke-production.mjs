@@ -18,11 +18,11 @@ for(const sample of cases){
  text.forEach((line,i)=>page.drawText(line,{x:35,y:785-i*31,size:11,font}));
  const form=new FormData();form.set('file',new Blob([await doc.save()],{type:'application/pdf'}),sample.name+'.pdf');form.set('categories',JSON.stringify([category]));
  const started=Date.now();response=await fetch(base+'/api/extract',{method:'POST',headers,body:form,signal:AbortSignal.timeout(260000)});const body=await response.json();assert.equal(response.status,200,body.error);
- const invoice=body.invoice;assert.equal(invoice.number,sample.name);assert.equal(invoice.description,category.name);assert.ok(!/EC-77|PV-10/.test(invoice.description));assert.ok(!('items' in invoice));assert.ok(!('employee' in invoice));assert.ok(!('supplier' in invoice));assert.ok(!('taxNumber' in invoice));
+ const invoice=body.invoice;assert.equal(invoice.number,sample.name);assert.equal(invoice.description,category.name);assert.ok(!/EC-77|PV-10/.test(invoice.description));assert.ok(!('items' in invoice));assert.ok(!('employee' in invoice));assert.ok(typeof invoice.supplier==='string');assert.ok(!('taxNumber' in invoice));
  assert.equal(invoice.subtotalBeforeTax,sample.net);assert.equal(invoice.vatAmount,sample.tax);assert.equal(invoice.totalIncludingTax,sample.gross);
  const printed={reportedSubtotalCents:invoice.subtotalBeforeTax===null?null:roundCents(invoice.subtotalBeforeTax),reportedTaxCents:invoice.vatAmount===null?null:roundCents(invoice.vatAmount),reportedTotalCents:invoice.totalIncludingTax===null?null:roundCents(invoice.totalIncludingTax)};
  const amounts=amountsFromPrinted(printed);assert.equal(amounts.netCents,100000);assert.equal(amounts.taxCents,15000);assert.equal(amounts.grossCents,115000);
- const full={id:sample.name,number:invoice.number,date:invoice.date,description:invoice.description,categoryCode:invoice.categoryCode,...printed,...amounts,status:'review',createdAt:new Date().toISOString(),sourceName:sample.name+'.pdf',sourceHash:'',page:1,warnings:invoice.warnings,duplicateReason:''};
+ const full={id:sample.name,number:invoice.number,date:invoice.date,supplier:invoice.supplier,description:invoice.description,categoryCode:invoice.categoryCode,...printed,...amounts,status:'review',createdAt:new Date().toISOString(),sourceName:sample.name+'.pdf',sourceHash:'',page:1,warnings:invoice.warnings,duplicateReason:''};
  assert.deepEqual(invoiceProblems(full,[category]),[]);
  console.log(JSON.stringify({case:sample.name,description:invoice.description,net:amounts.netCents/100,tax:amounts.taxCents/100,total:amounts.grossCents/100,seconds:Math.round((Date.now()-started)/1000)}));
 }

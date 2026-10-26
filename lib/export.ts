@@ -1,33 +1,37 @@
-import {Category,Invoice,Preferences,columns,exportRows,money} from './domain';
+import {type Invoice,type Preferences,exportColumns,exportRows} from './domain';
+import {layoutPdfPages,paintPdfPage,type CanvasFactory} from './pdf-canvas';
 const filename=(extension:string)=>'Beyond-فواتير-'+new Date().toISOString().slice(0,10)+'.'+extension;
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
-export async function exportExcel(invoices:Invoice[],categories:Category[],prefs:Preferences,selected:string[]){
+export async function exportExcel(invoices:Invoice[],prefs:Preferences){
+ if(!invoices.length)throw new Error('لا توجد فواتير للتصدير.');
  const {Workbook}=await import('exceljs');
- const workbook=new Workbook();workbook.creator='Beyond';workbook.created=new Date();const sheet=workbook.addWorksheet('الفواتير',{views:[{rightToLeft:true,state:'frozen',ySplit:5}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
- const cols=selected.map(k=>columns.find(c=>c.key===k)!).filter(Boolean);const records=exportRows(invoices,categories);
- sheet.mergeCells(1,1,1,cols.length);sheet.getCell(1,1).value=prefs.company+' | فواتير';sheet.getCell(1,1).font={name:'Arial',bold:true,size:22,color:{argb:'FFFFFFFF'}};sheet.getCell(1,1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF173569'}};sheet.getRow(1).height=48;
- sheet.mergeCells(2,1,2,cols.length);sheet.getCell(2,1).value='كشف الفواتير — الريال السعودي SAR';sheet.getRow(2).height=26;
- sheet.mergeCells(3,1,3,cols.length);sheet.getCell(3,1).value=invoices.length+' فاتورة | '+records.length+' صف | '+new Intl.DateTimeFormat('ar-SA',{dateStyle:'medium',timeZone:'Asia/Riyadh'}).format(new Date());
- sheet.getCell(3,1).font={name:'Arial',size:11,color:{argb:'FF667085'}};
- cols.forEach((col,index)=>{sheet.getColumn(index+1).width=col.key==='description'?32:col.key==='amount'?18:22;const cell=sheet.getCell(5,index+1);cell.value=col.label;cell.font={name:'Arial',bold:true,color:{argb:'FF173569'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEDF3FF'}};cell.alignment={horizontal:'right',vertical:'middle'};});sheet.getRow(5).height=32;
- records.forEach((record,index)=>{const row=sheet.getRow(index+6);cols.forEach((col,c)=>{const cell=row.getCell(c+1);cell.value=record[col.key as keyof typeof record];cell.font={name:'Arial',size:11};cell.alignment={horizontal:typeof cell.value==='number'?'left':'right',vertical:'middle',wrapText:true};if(col.key==='amount')cell.numFmt='#,##0.00';if(index%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF6F8FB'}};cell.border={bottom:{style:'hair',color:{argb:'FFE7ECF3'}}};});row.height=42;});
- sheet.autoFilter={from:{row:5,column:1},to:{row:records.length+5,column:cols.length}};
- sheet.headerFooter.oddFooter='Beyond فواتير | صفحة &P من &N';
- sheet.pageSetup.printTitlesRow='1:5';
+ const workbook=new Workbook();workbook.creator='Beyond';workbook.created=new Date();
+ const sheet=workbook.addWorksheet('الفواتير',{views:[{rightToLeft:true,state:'frozen',ySplit:5}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
+ const records=exportRows(invoices);
+ sheet.mergeCells(1,1,1,exportColumns.length);sheet.getCell(1,1).value=prefs.company+' | فواتير';sheet.getCell(1,1).font={name:'Arial',bold:true,size:22,color:{argb:'FFFFFFFF'}};sheet.getCell(1,1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF173569'}};sheet.getRow(1).height=48;
+ sheet.mergeCells(2,1,2,exportColumns.length);sheet.getCell(2,1).value='كشف الفواتير — الريال السعودي SAR';sheet.getRow(2).height=26;
+ sheet.mergeCells(3,1,3,exportColumns.length);sheet.getCell(3,1).value=invoices.length+' فاتورة | '+records.length+' صف';sheet.getCell(3,1).font={name:'Arial',size:11,color:{argb:'FF667085'}};
+ exportColumns.forEach((column,index)=>{sheet.getColumn(index+1).width=column.key==='description'?38:column.key==='supplier'?30:22;const cell=sheet.getCell(5,index+1);cell.value=column.label;cell.font={name:'Arial',bold:true,color:{argb:'FF173569'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEDF3FF'}};cell.alignment={horizontal:'right',vertical:'middle'};});sheet.getRow(5).height=32;
+ records.forEach((record,index)=>{const row=sheet.getRow(index+6);exportColumns.forEach((column,n)=>{const cell=row.getCell(n+1);cell.value=record[column.key];cell.font={name:'Arial',size:11};cell.alignment={horizontal:column.key==='amount'?'left':'right',vertical:'middle',wrapText:true};if(column.key==='amount')cell.numFmt='#,##0.00';if(Math.floor(index/2)%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F7FD'}};cell.border={bottom:{style:index%2===1?'thin':'hair',color:{argb:'FFDCE5F2'}}};});row.height=42;});
+ sheet.autoFilter={from:{row:5,column:1},to:{row:records.length+5,column:exportColumns.length}};
+ sheet.headerFooter.oddFooter='Beyond فواتير | صفحة &P من &N';sheet.pageSetup.printTitlesRow='1:5';
  const bytes=await workbook.xlsx.writeBuffer();download(new Blob([bytes as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),filename('xlsx'));
 }
-const escapeHtml=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-export async function exportPdf(invoices:Invoice[],categories:Category[],prefs:Preferences,selected:string[]){
- const [{jsPDF},{toPng}]=await Promise.all([import('jspdf'),import('html-to-image')]);
- await document.fonts.ready;const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
- const cols=selected.map(k=>columns.find(c=>c.key===k)!).filter(Boolean),records=exportRows(invoices,categories);
- const perPage=8,pageCount=Math.max(1,Math.ceil(records.length/perPage));
- for(let page=0;page<pageCount;page++){
-  const root=document.createElement('div');root.style.cssText='position:absolute;left:-20000px;top:0;width:1122px;height:794px;background:#fff;color:#172c4f;box-sizing:border-box;padding:38px 42px;font-family:BeyondArabic,Arial,sans-serif;direction:rtl;font-size:13px;';
-  const bodyRows=records.slice(page*perPage,(page+1)*perPage).map(row=>'<tr>'+cols.map(col=>'<td style="border-bottom:1px solid #e5eaf1;padding:12px 7px;line-height:1.55;'+(['amount','code','number','date'].includes(col.key)?'direction:ltr;text-align:left;':'text-align:right;')+'">'+escapeHtml(col.key==='amount'?money(Number(row[col.key as keyof typeof row])*100):row[col.key as keyof typeof row])+'</td>').join('')+'</tr>').join('');
-  root.innerHTML='<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #2458e6;padding-bottom:20px;margin-bottom:22px"><div><div style="font-size:32px;font-weight:bold">'+escapeHtml(prefs.company)+'<span style="color:#2458e6">.</span></div><div style="font-size:16px;margin-top:6px">كشف الفواتير</div></div><div style="text-align:left;color:#69768a;line-height:1.8">'+'الريال السعودي SAR<br/>'+escapeHtml(new Intl.DateTimeFormat('ar-SA',{dateStyle:'medium',timeZone:'Asia/Riyadh'}).format(new Date()))+'</div></div><div style="display:flex;gap:30px;font-size:12px;margin-bottom:18px"><span>عدد الفواتير: '+invoices.length+'</span><span>صفوف المبالغ: '+records.length+'</span></div><table style="border-collapse:collapse;table-layout:fixed;width:100%;font-size:11px;"><thead><tr>'+cols.map(c=>'<th style="text-align:right;background:#edf3ff;color:#173569;padding:12px 7px;">'+escapeHtml(c.label)+'</th>').join('')+'</tr></thead><tbody>'+bodyRows+'</tbody></table><div style="position:absolute;bottom:26px;left:42px;right:42px;display:flex;justify-content:space-between;border-top:1px solid #e5eaf1;padding-top:12px;color:#6b7789;font-size:11px"><span>Beyond فواتير · صف للمبلغ وصف للضريبة · المبالغ بالريال السعودي</span><span>صفحة '+(page+1)+' من '+pageCount+'</span></div>';
-  document.body.appendChild(root);
-  try {const png=await toPng(root,{pixelRatio:2,backgroundColor:'#ffffff',cacheBust:false});if(page)pdf.addPage('a4','landscape');pdf.addImage(png,'PNG',0,0,297,210,undefined,'FAST');}finally{root.remove();}
+export async function createPdfBytes(invoices:Invoice[],prefs:Preferences,createCanvas:CanvasFactory=()=>document.createElement('canvas')){
+ if(!invoices.length)throw new Error('لا توجد فواتير للتصدير.');
+ const {jsPDF}=await import('jspdf');
+ const canvas=createCanvas(),ctx=canvas.getContext('2d');if(!ctx)throw new Error('تعذر تجهيز PDF في هذا المتصفح.');
+ const pages=layoutPdfPages(ctx,exportRows(invoices));
+ const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
+ for(let n=0;n<pages.length;n++){
+  paintPdfPage(canvas,pages[n],prefs,n+1,pages.length,invoices.length);
+  if(n)pdf.addPage('a4','landscape');
+  pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,297,210,undefined,'FAST');
  }
- pdf.save(filename('pdf'));
+ canvas.width=1;canvas.height=1;
+ return new Uint8Array(pdf.output('arraybuffer'));
+}
+export async function exportPdf(invoices:Invoice[],prefs:Preferences){
+ await document.fonts.load('14px BeyondArabic');await document.fonts.ready;
+ const bytes=await createPdfBytes(invoices,prefs);download(new Blob([bytes as BlobPart],{type:'application/pdf'}),filename('pdf'));
 }
