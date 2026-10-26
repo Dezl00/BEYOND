@@ -3,7 +3,7 @@ const env={};for(const line of readFileSync('.env.local','utf8').split(/\r?\n/))
 const require=createRequire(import.meta.url),{amountsFromPrinted,roundCents,invoiceProblems}=require(resolve('work/accounting-tests/lib/domain.js'));
 const base=process.env.TEST_BASE_URL||'http://127.0.0.1:3001';
 let response=await fetch(base+'/api/settings');assert.equal(response.status,401);
-response=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:env.APP_PASSWORD})});assert.equal(response.status,200);const cookie=response.headers.get('set-cookie').split(';')[0],headers={Cookie:cookie};
+response=await fetch(base+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:process.env.TEST_LOGIN_PASSWORD||readFileSync('../BEYOND-access.txt','utf8').split('كلمة مرور النظام الحالية:\n')[1]?.split('\n')[0]})});assert.equal(response.status,200);const cookie=response.headers.get('set-cookie').split(';')[0],headers={Cookie:cookie};
 response=await fetch(base+'/',{headers});assert.equal(response.status,200);const html=await response.text();assert.ok(!html.includes('صاحب العهدة'));console.log('PASS: authentication and initial workspace render without a custodian field.');
 const category={code:'TEST-ALL',name:'مشتريات صيانة'};
 const cases=[

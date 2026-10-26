@@ -1,3 +1,6 @@
+import {createHmac} from 'node:crypto';
+import {createPasswordService,PasswordError,type PasswordRecord} from './password';
+import {passwordDatabase} from './auth-db';
 import { neon } from '@neondatabase/serverless';
 import {resolveGeminiKeys} from './gemini';
 import type { Workspace } from './domain';
@@ -46,6 +49,7 @@ export function validateDatabaseUrl(value:string) {
  catch {throw new ApiError('استخدم رابط اتصال PostgreSQL الصحيح من مشروع Neon.');}
 }
 export function errorResponse(error:unknown) {
+ if(error instanceof PasswordError)return Response.json({error:error.message},{status:error.status,headers:error.retryAfter?{'Retry-After':String(error.retryAfter),'Cache-Control':'no-store'}:{'Cache-Control':'no-store'}});
  if(error instanceof ApiError) return Response.json({error:error.message},{status:error.status});
  // Do not expose raw database/provider errors or request credentials.
  console.error('[Beyond]', error instanceof Error?error.name:'OperationError');
@@ -83,19 +87,22 @@ export async function writeWorkspace(url:string,owner:string,state:Workspace){
  return rows[0].revision as number;
 }
 
-async function passwordVersion(){return to64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(process.env.APP_PASSWORD||''))));}
-export async function passwordMatches(password:string){
- const expected=process.env.APP_PASSWORD;if(!expected||expected.length<12)return false;
- const [a,b]=await Promise.all([crypto.subtle.digest('SHA-256',new TextEncoder().encode(password)),crypto.subtle.digest('SHA-256',new TextEncoder().encode(expected))]);
- const left=new Uint8Array(a),right=new Uint8Array(b);let diff=0;for(let i=0;i<left.length;i++)diff|=left[i]^right[i];return diff===0;
+export const passwordRecord=()=>passwordDatabase(process.env.DATABASE_URL||'').get();
+export const passwordService=()=>createPasswordService(passwordDatabase(process.env.DATABASE_URL||''));
+export function authBucket(request:Request,scope:string){
+ const ip=request.headers.get('x-vercel-forwarded-for')||request.headers.get('x-real-ip')||request.headers.get('x-forwarded-for')?.split(',')[0]||'local';
+ return createHmac('sha256',process.env.APP_ENCRYPTION_KEY||'').update(scope+':'+ip.trim()).digest('hex');
 }
-export async function authenticatedToken(token:string|undefined){
- if(!process.env.APP_PASSWORD)return process.env.NODE_ENV==='development'&&!!process.env.APP_ENCRYPTION_KEY;
+export async function authenticatedToken(token:string|undefined,record?:PasswordRecord|null){
  if(!token)return false;
- try{const raw=from64(decodeURIComponent(token));const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:raw.subarray(0,12)},await encryptionKey(),raw.subarray(12));const data=JSON.parse(new TextDecoder().decode(plain));return data.owner==='beyond-owner'&&data.expires>Date.now()&&data.version===await passwordVersion();}catch{return false;}
+ try{const raw=from64(decodeURIComponent(token));const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:raw.subarray(0,12)},await encryptionKey(),raw.subarray(12));const data=JSON.parse(new TextDecoder().decode(plain));
+  if(data.owner!=='beyond-owner'||typeof data.expires!=='number'||data.expires<=Date.now())return false;
+  const current=record===undefined?await passwordRecord():record;return !!current&&data.version===current.sessionVersion;
+ }catch{return false;}
 }
-export async function createSessionCookie(secure:boolean){
- const iv=crypto.getRandomValues(new Uint8Array(12));const payload=new TextEncoder().encode(JSON.stringify({owner:'beyond-owner',expires:Date.now()+7*86400000,version:await passwordVersion()}));
+export async function createSessionCookie(secure:boolean,version?:string){
+ const currentVersion=version||(await passwordRecord())?.sessionVersion;if(!currentVersion)throw new PasswordError('لم تُجهّز كلمة مرور مساحة العمل بعد.',503);
+ const iv=crypto.getRandomValues(new Uint8Array(12));const payload=new TextEncoder().encode(JSON.stringify({owner:'beyond-owner',expires:Date.now()+7*86400000,version:currentVersion}));
  const encrypted=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await encryptionKey(),payload));const joined=new Uint8Array(12+encrypted.length);joined.set(iv);joined.set(encrypted,12);
  return 'beyond_session='+encodeURIComponent(to64(joined))+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800'+(secure?'; Secure':'');
 }
