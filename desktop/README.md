@@ -30,9 +30,11 @@ The Windows workflow uploads an **unconfigured** build. Patch data/flutter_asset
 
 ## Scanner
 
-Uses Windows Image Acquisition (WIA) through a native C++ platform channel and the installed scanner driver. The native dialog selects a device and acquires an ImageFile; FileData.BinaryData is transferred directly into Flutter memory. No SaveFile, disk-based acquisition wizard, PowerShell helper or temporary scan folder is used. Each scan action acquires one image; repeat it to add further invoices. The scanner must have a WIA-compatible Windows driver. Cancel and missing-device failures are handled without creating invoice rows.
+Uses Windows Image Acquisition 2.0 through a native C++ platform channel. Select the scanner once; the app selects its feeder item and continues until WIA reports PAPER_EMPTY. Drivers that return one page per Download are called again automatically. A flatbed-only device still scans once. The remaining session capacity is passed before transfer (50 invoices maximum per workspace); the callback also enforces it.
 
-A real scan requires connected hardware; automated tests cover the channel's byte/cancellation contract, not physical scanner operation.
+Each completed page is transferred from a bounded in-memory IStream directly to the Flutter preview. The scanner worker waits for Flutter to normalize and acknowledge that page before continuing, preventing a backlog of raw image buffers. No temporary scan files or invoice history are written. Stop cancels the active session. Completed preview pages survive cancellation, paper jams, multi-feed errors, and device failures; incomplete image streams are discarded. The native worker never accesses the Flutter engine off its platform thread.
+
+A real scan requires connected hardware; automated tests cover the channel contract and native multi-page, empty-feeder, cancellation, jam, batch-capacity and stream-bound cases. Physical feed behavior still requires a connected scanner.
 
 ## Windows 10 rendering compatibility
 

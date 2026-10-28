@@ -20,6 +20,8 @@ class Workspace extends ChangeNotifier {
       exporting = false,
       scanning = false;
   bool editing = false, showPreview = false;
+  bool cancellingScan = false;
+  int scannedPages = 0;
   String? error;
   String? selectedId;
   int _generation = 0;
@@ -87,6 +89,13 @@ class Workspace extends ChangeNotifier {
     }
   }
 
+  Future<void> cancelScan() async {
+    if (!scanning || cancellingScan) return;
+    cancellingScan = true;
+    changed();
+    await cancelScanner();
+  }
+
   Future<void> scan() async {
     if (busy || loading) return;
     if (pages.length >= 50) {
@@ -96,33 +105,48 @@ class Workspace extends ChangeNotifier {
     }
     final generation = _generation;
     scanning = true;
+    cancellingScan = false;
+    scannedPages = 0;
     error = null;
     changed();
     try {
-      final images = await acquireScan();
-      for (final bytes in images) {
-        if (generation != _generation) return;
-        if (pages.length >= 50) {
-          throw const ApiException('الحد الأقصى للدفعة 50 فاتورة أو صفحة.');
-        }
-        final normalized = await compute(normalizeImage, bytes);
-        if (generation != _generation) return;
-        final page = InvoicePage(
-          id: 'scan-${DateTime.now().microsecondsSinceEpoch}',
-          name: 'مسح ضوئي ${pages.length + 1}',
-          bytes: normalized,
-        );
-        pages.add(page);
-        selectedId = page.id;
-        changed();
+      final result = await acquireScan(
+        maxPages: 50 - pages.length,
+        onPage: (bytes, index) async {
+          if (generation != _generation) {
+            throw const ApiException('تم إيقاف جلسة المسح.');
+          }
+          final normalized = await compute(normalizeImage, bytes);
+          if (generation != _generation) {
+            throw const ApiException('تم إيقاف جلسة المسح.');
+          }
+          if (pages.length >= 50) {
+            throw const ApiException('الحد الأقصى للدفعة 50 فاتورة أو صفحة.');
+          }
+          final page = InvoicePage(
+            id: 'scan-${DateTime.now().microsecondsSinceEpoch}-$index',
+            name: 'مسح ضوئي ${pages.length + 1}',
+            bytes: normalized,
+          );
+          pages.add(page);
+          selectedId = page.id;
+          scannedPages++;
+          changed();
+        },
+      );
+      if (generation == _generation && result.warning.isNotEmpty) {
+        error = result.warning;
       }
     } on PlatformException catch (e) {
-      error = e.message ?? 'تعذر الاتصال بالماسح الضوئي.';
+      if (generation == _generation) {
+        error = e.message ?? 'تعذر الاتصال بالماسح الضوئي.';
+      }
     } catch (e) {
-      error = friendly(e);
+      if (generation == _generation) error = friendly(e);
     } finally {
       if (generation == _generation) {
         scanning = false;
+        cancellingScan = false;
         changed();
       }
     }
@@ -240,6 +264,7 @@ class Workspace extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (scanning) cancelScanner();
     _disposed = true;
     _generation++;
     api?.close();

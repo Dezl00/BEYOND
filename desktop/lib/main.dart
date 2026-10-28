@@ -200,9 +200,22 @@ class _WorkspaceViewState extends State<WorkspaceView> {
                           label: const Text('إضافة ملفات'),
                         ),
                         OutlinedButton.icon(
-                          onPressed: w.busy || w.loading ? null : w.scan,
-                          icon: const Icon(Icons.scanner_outlined, size: 19),
-                          label: Text(w.scanning ? 'جارٍ المسح' : 'مسح ضوئي'),
+                          onPressed: w.scanning
+                              ? (w.cancellingScan ? null : w.cancelScan)
+                              : (w.busy || w.loading ? null : w.scan),
+                          icon: Icon(
+                            w.scanning
+                                ? Icons.stop_rounded
+                                : Icons.scanner_outlined,
+                            size: 19,
+                          ),
+                          label: Text(
+                            w.scanning
+                                ? (w.cancellingScan
+                                      ? 'جارٍ الإيقاف'
+                                      : 'إيقاف المسح · ${w.scannedPages}')
+                                : 'مسح ضوئي',
+                          ),
                         ),
                         if (w.processing)
                           OutlinedButton.icon(

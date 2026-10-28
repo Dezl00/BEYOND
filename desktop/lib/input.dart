@@ -103,7 +103,101 @@ Future<List<InvoicePage>> prepareFile(XFile file, int remaining) async {
   }
 }
 
-Future<List<Uint8List>> acquireScan() async {
-  final result = await scanner.invokeListMethod<Uint8List>('scan');
-  return result ?? [];
+class ScanResult {
+  final bool cancelled;
+  final String warning;
+  final bool feeder;
+  const ScanResult({
+    this.cancelled = false,
+    this.warning = '',
+    this.feeder = false,
+  });
+}
+
+String? _activeScannerSession;
+int _scannerSerial = 0;
+Future<void> cancelScanner() async {
+  final id = _activeScannerSession;
+  if (id == null) return;
+  try {
+    await scanner.invokeMethod<void>('cancel', {'sessionId': id});
+  } on MissingPluginException {
+    // The native bridge may already have closed with the app window.
+  } on PlatformException {
+    // The transfer callback also observes native cancellation.
+  }
+}
+
+Future<ScanResult> acquireScan({
+  required int maxPages,
+  required Future<void> Function(Uint8List bytes, int index) onPage,
+}) async {
+  if (maxPages < 1 || maxPages > 50) {
+    throw const ApiException('الحد الأقصى للدفعة 50 فاتورة أو صفحة.');
+  }
+  if (_activeScannerSession != null) {
+    throw const ApiException('جلسة المسح ما زالت تعمل.');
+  }
+  final id = '${DateTime.now().microsecondsSinceEpoch}-${++_scannerSerial}';
+  _activeScannerSession = id;
+  var accepted = 0;
+  Object? pageError;
+  Future<void> processing = Future.value();
+  scanner.setMethodCallHandler((call) async {
+    if (call.method != 'page') return false;
+    final value = call.arguments;
+    if (value is! Map ||
+        value['sessionId'] != id ||
+        _activeScannerSession != id) {
+      return false;
+    }
+    try {
+      final index = value['index'], bytes = value['bytes'];
+      if (index is! int ||
+          index != accepted + 1 ||
+          index > maxPages ||
+          bytes is! Uint8List ||
+          bytes.isEmpty ||
+          bytes.length > 25 * 1024 * 1024) {
+        throw const ApiException('صفحة المسح غير مكتملة.');
+      }
+      processing = processing.then((_) => onPage(bytes, index));
+      await processing;
+      accepted++;
+      return true;
+    } catch (error) {
+      pageError ??= error;
+      throw PlatformException(
+        code: 'SCAN_PAGE',
+        message: 'تعذر تجهيز صفحة المسح.',
+      );
+    }
+  });
+  try {
+    final result = await scanner.invokeMapMethod<String, dynamic>('scan', {
+      'sessionId': id,
+      'maxPages': maxPages,
+    });
+    try {
+      await processing;
+    } catch (error) {
+      pageError ??= error;
+    }
+    if (pageError != null) throw pageError!;
+    return ScanResult(
+      cancelled: result?['cancelled'] == true,
+      warning: result?['warning'] as String? ?? '',
+      feeder: result?['feeder'] == true,
+    );
+  } finally {
+    try {
+      await processing;
+    } catch (_) {
+      /* Completed pages remain in the workspace. */
+    }
+    if (_activeScannerSession == id) {
+      scanner.setMethodCallHandler(null);
+      _activeScannerSession = null;
+    }
+  }
 }

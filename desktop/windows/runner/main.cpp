@@ -40,15 +40,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance,_In_opt_ HINSTANCE prev,
  // Keep WIA's modal driver dialog independent of the Flutter UI isolate.
  project.set_ui_thread_policy(flutter::UIThreadPolicy::RunOnSeparateThread);
  project.set_dart_entrypoint_arguments(std::move(arguments));
- FlutterWindow window(project,verify);
- Win32Window::Point origin(60,40);Win32Window::Size size(1440,900);
- if(!window.Create(L"Beyond",origin,size)) {
-  if(!verify)MessageBoxW(nullptr,L"تعذر بدء واجهة Beyond. تحقق من اكتمال ملفات التشغيل وتعريف كارت الشاشة.",L"Beyond",MB_OK|MB_ICONERROR);
-  ::CoUninitialize();return 5;
+ int exit_code=EXIT_FAILURE;
+ {
+  FlutterWindow window(project,verify);
+  Win32Window::Point origin(60,40);Win32Window::Size size(1440,900);
+  if(!window.Create(L"Beyond",origin,size)) {
+   if(!verify)MessageBoxW(nullptr,L"تعذر بدء واجهة Beyond. تحقق من اكتمال ملفات التشغيل وتعريف كارت الشاشة.",L"Beyond",MB_OK|MB_ICONERROR);
+   exit_code=5;
+  }else{
+   window.SetQuitOnClose(true);
+   ::MSG msg{};BOOL status;
+   while((status=::GetMessage(&msg,nullptr,0,0))>0){::TranslateMessage(&msg);::DispatchMessage(&msg);}
+   exit_code=status<0?EXIT_FAILURE:static_cast<int>(msg.wParam);
+  }
  }
- window.SetQuitOnClose(true);
- ::MSG msg{};BOOL status;
- while((status=::GetMessage(&msg,nullptr,0,0))>0){::TranslateMessage(&msg);::DispatchMessage(&msg);}
+ // Close scanner callbacks and the Flutter engine before releasing the UI COM apartment.
  ::CoUninitialize();
- return status<0?EXIT_FAILURE:static_cast<int>(msg.wParam);
+ return exit_code;
 }

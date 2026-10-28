@@ -37,7 +37,7 @@ bool FlutterWindow::OnCreate() {
   });
   SetTimer(GetHandle(), kStartupTimer, 20000, nullptr);
   RegisterPlugins(flutter_controller_->engine());
-  scanner_channel_ = RegisterScanner(flutter_controller_->engine()->messenger());
+  scanner_channel_ = RegisterScanner(flutter_controller_->engine()->messenger(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {

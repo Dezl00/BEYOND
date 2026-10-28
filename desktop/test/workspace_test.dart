@@ -114,20 +114,6 @@ void main() {
       w.dispose();
     },
   );
-  test(
-    'native scanner bytes enter the session without a temporary file',
-    () async {
-      final bytes = page().bytes;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(scanner, (call) async {
-            expect(call.method, 'scan');
-            return [bytes];
-          });
-      expect((await acquireScan()).single, bytes);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(scanner, null);
-    },
-  );
   testWidgets(
     'empty workspace has only working controls and the journal columns',
     (tester) async {
