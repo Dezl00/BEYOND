@@ -155,6 +155,7 @@ class Workspace extends ChangeNotifier {
           if (generation != _generation) return;
           page.state = PageState.failed;
           page.error = friendly(e);
+          if (page.invoice != null) error = page.error;
         }
         changed();
       }
@@ -215,18 +216,18 @@ class Workspace extends ChangeNotifier {
       changed();
       return;
     }
-    final location = await getSaveLocation(
-      suggestedName:
-          'Beyond-Journal-${DateTime.now().toIso8601String().substring(0, 10)}.$format',
-      acceptedTypeGroups: [
-        XTypeGroup(label: format.toUpperCase(), extensions: [format]),
-      ],
-    );
-    if (location == null) return;
     exporting = true;
     error = null;
     changed();
     try {
+      final location = await getSaveLocation(
+        suggestedName:
+            'Beyond-Journal-${DateTime.now().toIso8601String().substring(0, 10)}.$format',
+        acceptedTypeGroups: [
+          XTypeGroup(label: format.toUpperCase(), extensions: [format]),
+        ],
+      );
+      if (location == null) return;
       final bytes = await api!.export(invoices, format);
       await File(location.path).writeAsBytes(bytes, flush: true);
     } catch (e) {
