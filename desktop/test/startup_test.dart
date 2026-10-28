@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:beyond_desktop/startup.dart';
+import 'package:beyond_desktop/design.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,5 +33,18 @@ void main() {
           throw PlatformException(code: 'unavailable');
         });
     expect(await notifyNativeReady(), isFalse);
+  });
+  test('custom caption actions use the native window channel', () async {
+    final calls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(startupChannel, (call) async {
+          calls.add(call.method);
+          expect(call.arguments, isNull);
+          return null;
+        });
+    for (final action in ['drag', 'minimize', 'toggleMaximize', 'close']) {
+      await windowAction(action);
+    }
+    expect(calls, ['drag', 'minimize', 'toggleMaximize', 'close']);
   });
 }

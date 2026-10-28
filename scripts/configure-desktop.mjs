@@ -5,7 +5,7 @@ const url=new URL(process.argv[2]||'https://beyond-inv.vercel.app');
 if(url.protocol!=='https:'||url.username||url.password)throw new Error('Use the HTTPS backend URL');
 const secret=process.env.APP_ENCRYPTION_KEY;if(!secret||secret.length<32)throw new Error('APP_ENCRYPTION_KEY must be available on the build machine');
 const audience='beyond.windows.ephemeral.v1';
-const payload=Buffer.from(JSON.stringify({aud:audience,owner:'beyond-owner',exp:Date.now()+2*365*86400000,installation:randomUUID()})).toString('base64url');
+const payload=Buffer.from(JSON.stringify({aud:audience,owner:'beyond-owner',exp:Date.now()+2*365*86400000,installation:randomUUID(),manageAccounts:true})).toString('base64url');
 const token=payload+'.'+createHmac('sha256',secret).update(audience+':'+payload).digest('base64url');
 const target=resolve('desktop/assets/runtime.json');
 writeFileSync(target,JSON.stringify({baseUrl:url.origin,desktopToken:token},null,2)+'\n');

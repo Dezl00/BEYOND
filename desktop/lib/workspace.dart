@@ -24,7 +24,8 @@ class Workspace extends ChangeNotifier {
   int scannedPages = 0;
   String? error;
   String? selectedId;
-  int _generation = 0;
+  int _generation = 0, _accountGeneration = 0;
+  bool accountSaving = false;
   bool _disposed = false;
   final bool automaticAccountSync;
   final Duration accountSyncInterval, accountRetryInterval;
@@ -51,7 +52,8 @@ class Workspace extends ChangeNotifier {
   Future<void> initialize() => synchronizeAccounts();
 
   Future<void> synchronizeAccounts() async {
-    if (_disposed || accountSyncing) return;
+    if (_disposed || accountSyncing || accountSaving) return;
+    final generation = _accountGeneration;
     initialized = true;
     _accountSyncTimer?.cancel();
     _accountSyncTimer = null;
@@ -60,7 +62,7 @@ class Workspace extends ChangeNotifier {
     try {
       api ??= BeyondApi(await RuntimeConfig.load());
       final update = await api!.synchronizeAccounts(etag: _accountEtag);
-      if (_disposed) return;
+      if (_disposed || generation != _accountGeneration) return;
       if (update.accounts != null) {
         accounts = List.unmodifiable(update.accounts!);
       }
@@ -68,19 +70,48 @@ class Workspace extends ChangeNotifier {
       lastAccountSync = DateTime.now();
       accountSyncError = null;
     } catch (e) {
-      if (!_disposed) accountSyncError = friendly(e);
+      if (!_disposed && generation == _accountGeneration) {
+        accountSyncError = friendly(e);
+      }
     } finally {
       accountSyncing = false;
       loading = false;
       changed();
-      if (!_disposed && automaticAccountSync) {
-        _accountSyncTimer = Timer(
-          accountSyncError == null ? accountSyncInterval : accountRetryInterval,
-          () {
-            synchronizeAccounts();
-          },
-        );
-      }
+      _scheduleAccountSync();
+    }
+  }
+
+  void _scheduleAccountSync() {
+    if (_disposed || !automaticAccountSync) return;
+    _accountSyncTimer?.cancel();
+    _accountSyncTimer = Timer(
+      accountSyncError == null ? accountSyncInterval : accountRetryInterval,
+      synchronizeAccounts,
+    );
+  }
+
+  Future<void> saveAccountChanges(
+    List<Account> changes, {
+    Account? previous,
+  }) async {
+    if (accountSaving || _disposed) return;
+    if (api == null) {
+      throw const ApiException('اتصال الحسابات غير متاح. أعد المزامنة.');
+    }
+    accountSaving = true;
+    _accountGeneration++;
+    changed();
+    try {
+      final result = await api!.saveAccounts(changes, previous: previous);
+      if (_disposed) return;
+      accounts = List.unmodifiable(result.accounts!);
+      _accountEtag = result.etag;
+      accountSyncError = null;
+      lastAccountSync = DateTime.now();
+    } finally {
+      accountSaving = false;
+      _scheduleAccountSync();
+      changed();
     }
   }
 

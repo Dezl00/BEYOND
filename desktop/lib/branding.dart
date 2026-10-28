@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'workspace.dart';
+import 'design.dart';
 
 const brandBlue = Color(0xFF173F80);
 
@@ -22,85 +23,44 @@ class BrandHeader extends StatelessWidget {
   final Workspace workspace;
   const BrandHeader({super.key, required this.workspace});
   @override
-  Widget build(BuildContext context) {
-    final w = workspace;
-    final status = w.accountSyncing
-        ? 'جارٍ المزامنة'
-        : w.accountSyncError != null
-        ? 'تعذّرت المزامنة'
-        : w.lastAccountSync == null
-        ? 'الحسابات'
-        : 'متزامن';
-    return Container(
-      height: 88,
-      color: brandBlue,
-      padding: const EdgeInsets.symmetric(horizontal: 28),
-      child: Row(
-        children: [
-          const BrandLogo(width: 172),
-          const SizedBox(width: 28),
-          const Text(
-            'الفواتير',
-            style: TextStyle(fontSize: 15, color: Color(0xFFDCE9FF)),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .09),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              '${w.accounts.length} حساب',
-              style: const TextStyle(color: Colors.white, fontSize: 12),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Tooltip(
-            message: w.accountSyncError ?? 'مزامنة تلقائية للحسابات والأكواد',
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => Container(
+    height: 74,
+    color: brandBlue,
+    padding: const EdgeInsets.symmetric(horizontal: 27),
+    child: Row(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanStart: (_) => windowAction('drag'),
+            onDoubleTap: () => windowAction('toggleMaximize'),
+            child: const Row(
               children: [
-                if (w.accountSyncing)
-                  const SizedBox(
-                    width: 13,
-                    height: 13,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.6,
-                      color: Colors.white,
-                    ),
-                  )
-                else
-                  Icon(
-                    w.accountSyncError == null
-                        ? Icons.cloud_done_outlined
-                        : Icons.cloud_off_outlined,
-                    size: 17,
-                    color: const Color(0xFFDCE9FF),
-                  ),
-                const SizedBox(width: 7),
+                BrandLogo(width: 146),
+                SizedBox(width: 24),
+                SizedBox(
+                  height: 24,
+                  child: VerticalDivider(color: Color(0xFF416198), width: 1),
+                ),
+                SizedBox(width: 20),
                 Text(
-                  status,
-                  style: const TextStyle(
-                    color: Color(0xFFDCE9FF),
-                    fontSize: 12,
+                  'BEYOND GROUP',
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 1.8,
+                    color: Color(0xFFB8CAE7),
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'مزامنة الحسابات والأكواد',
-            onPressed: w.accountSyncing ? null : w.synchronizeAccounts,
-            icon: const Icon(Icons.sync_rounded, size: 21),
-            color: Colors.white,
-            disabledColor: Colors.white38,
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+        const WindowControls(),
+      ],
+    ),
+  );
 }
 
 class BrandSplash extends StatefulWidget {
@@ -194,7 +154,7 @@ class _BrandSplashState extends State<BrandSplash>
                               textDirection: TextDirection.ltr,
                               style: TextStyle(
                                 fontSize: 30,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
                                 letterSpacing: 4.2,
                                 color: Colors.white,
                               ),

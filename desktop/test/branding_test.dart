@@ -17,6 +17,17 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.runAsync(() async {
+      await (FontLoader(
+        'MaterialIcons',
+      )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+      await (FontLoader('IBM Plex Sans Arabic')
+            ..addFont(
+              rootBundle.load('assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+            )
+            ..addFont(
+              rootBundle.load('assets/fonts/IBMPlexSansArabic-Medium.ttf'),
+            ))
+          .load();
       final font = File('C:/Windows/Fonts/segoeui.ttf');
       if (await font.exists()) {
         await (FontLoader(

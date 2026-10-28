@@ -153,4 +153,27 @@ void main() {
       w.dispose();
     },
   );
+  test(
+    'a delayed refresh cannot replace accounts just saved by the user',
+    () async {
+      final delayed = Completer<http.Response>();
+      final w = Workspace(
+        automaticAccountSync: false,
+        api: BeyondApi(
+          config,
+          client: MockClient((request) async {
+            if (request.method == 'GET') return delayed.future;
+            return catalog('007', 'تمت الإضافة', '"new"');
+          }),
+        ),
+      );
+      final pending = w.initialize();
+      await Future<void>.delayed(Duration.zero);
+      await w.saveAccountChanges([const Account('007', 'تمت الإضافة')]);
+      delayed.complete(catalog('001', 'قديم', '"old"'));
+      await pending;
+      expect(w.accounts.single.code, '007');
+      w.dispose();
+    },
+  );
 }

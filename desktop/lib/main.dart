@@ -6,12 +6,10 @@ import 'models.dart';
 import 'branding.dart';
 import 'startup.dart';
 import 'workspace.dart';
+import 'design.dart';
+import 'accounts_dialog.dart';
+import 'account_picker.dart';
 
-const navy = Color(0xFF173569),
-    blue = Color(0xFF2463EB),
-    pale = Color(0xFFEDF3FF),
-    line = Color(0xFFE5E8ED),
-    field = Color(0xFFF5F6F8);
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const BeyondApp());
@@ -28,47 +26,7 @@ class BeyondApp extends StatelessWidget {
     locale: const Locale('ar'),
     supportedLocales: const [Locale('ar'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
-    theme: ThemeData(
-      useMaterial3: true,
-      fontFamily: 'Segoe UI',
-      scaffoldBackgroundColor: Colors.white,
-      colorScheme: ColorScheme.fromSeed(seedColor: blue, surface: Colors.white),
-      splashFactory: NoSplash.splashFactory,
-      dividerColor: line,
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: blue,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: navy,
-          side: const BorderSide(color: line),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: field,
-        isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 12,
-        ),
-      ),
-      tooltipTheme: const TooltipThemeData(
-        waitDuration: Duration(milliseconds: 450),
-      ),
-    ),
+    theme: beyondTheme(),
     home: (showSplash ?? workspace == null)
         ? BootScreen(workspace: workspace)
         : WorkspaceView(workspace: workspace),
@@ -178,18 +136,98 @@ class _WorkspaceViewState extends State<WorkspaceView>
             children: [
               BrandHeader(workspace: w),
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
+                padding: const EdgeInsets.fromLTRB(28, 26, 28, 18),
+                child: Row(
+                  children: [
+                    const Text(
+                      'الفواتير',
+                      style: TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w500,
+                        color: navy,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: field,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${w.pages.length}',
+                        style: const TextStyle(fontSize: 12, color: muted),
+                      ),
+                    ),
+                    const Spacer(),
+                    Tooltip(
+                      message:
+                          w.accountSyncError ??
+                          'مزامنة تلقائية للحسابات والأكواد',
+                      child: Row(
+                        children: [
+                          if (w.accountSyncing)
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                              ),
+                            )
+                          else
+                            Icon(
+                              w.accountSyncError == null
+                                  ? Icons.cloud_done_outlined
+                                  : Icons.cloud_off_outlined,
+                              size: 16,
+                              color: muted,
+                            ),
+                          const SizedBox(width: 7),
+                          Text(
+                            w.accountSyncError != null
+                                ? 'تعذّرت المزامنة'
+                                : w.lastAccountSync == null
+                                ? 'الحسابات'
+                                : 'متزامن',
+                            style: const TextStyle(fontSize: 11, color: muted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    QuietIcon(
+                      tooltip: 'مزامنة الحسابات والأكواد',
+                      icon: Icons.sync_rounded,
+                      onPressed: w.accountSyncing || w.accountSaving
+                          ? null
+                          : w.synchronizeAccounts,
+                    ),
+                    const SizedBox(width: 12),
+                    OutlinedButton.icon(
+                      onPressed: w.api == null || w.loading
+                          ? null
+                          : () => showAccountsDialog(context, w),
+                      icon: const Icon(Icons.account_tree_outlined, size: 17),
+                      label: const Text('الحسابات'),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
                 child: LayoutBuilder(
                   builder: (context, c) => SizedBox(
                     width: c.maxWidth,
                     child: Wrap(
                       spacing: 10,
-                      runSpacing: 10,
+                      runSpacing: 12,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         FilledButton.icon(
                           onPressed: w.busy || w.loading ? null : w.chooseFiles,
-                          icon: const Icon(Icons.add_rounded, size: 21),
+                          icon: const Icon(Icons.add_rounded, size: 19),
                           label: const Text('إضافة ملفات'),
                         ),
                         OutlinedButton.icon(
@@ -200,7 +238,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                             w.scanning
                                 ? Icons.stop_rounded
                                 : Icons.scanner_outlined,
-                            size: 19,
+                            size: 18,
                           ),
                           label: Text(
                             w.scanning
@@ -213,7 +251,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                         if (w.processing)
                           OutlinedButton.icon(
                             onPressed: w.stop,
-                            icon: const Icon(Icons.stop_rounded, size: 18),
+                            icon: const Icon(Icons.stop_rounded, size: 17),
                             label: const Text('إيقاف'),
                           )
                         else
@@ -227,69 +265,95 @@ class _WorkspaceViewState extends State<WorkspaceView>
                                 : () => w.process(),
                             icon: const Icon(
                               Icons.auto_awesome_outlined,
-                              size: 18,
+                              size: 17,
                             ),
                             label: const Text('استخراج'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: pale,
+                              foregroundColor: blue,
+                            ),
                           ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 5),
+                        Container(height: 26, width: 1, color: line),
+                        const SizedBox(width: 5),
                         OutlinedButton.icon(
                           onPressed: w.busy || w.invoices.isEmpty
                               ? null
                               : () => setState(() => w.editing = !w.editing),
                           icon: Icon(
-                            w.editing
-                                ? Icons.done_rounded
-                                : Icons.edit_note_rounded,
-                            size: 20,
+                            w.editing ? Icons.done_rounded : Icons.tune_rounded,
+                            size: 17,
                           ),
                           label: Text(w.editing ? 'تم التعديل' : 'تعديل جماعي'),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: w.busy || w.invoices.isEmpty
-                              ? null
-                              : () => _export('xlsx'),
-                          icon: const Icon(
-                            Icons.table_chart_outlined,
-                            size: 18,
+                        Container(
+                          decoration: BoxDecoration(
+                            color: field,
+                            border: Border.all(color: line),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          label: const Text('Excel'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: w.busy || w.invoices.isEmpty
-                              ? null
-                              : () => _export('pdf'),
-                          icon: const Icon(
-                            Icons.picture_as_pdf_outlined,
-                            size: 18,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextButton.icon(
+                                onPressed: w.busy || w.invoices.isEmpty
+                                    ? null
+                                    : () => _export('xlsx'),
+                                icon: const Icon(
+                                  Icons.table_chart_outlined,
+                                  size: 16,
+                                ),
+                                label: const Text('Excel'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: navy,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 15,
+                                  ),
+                                ),
+                              ),
+                              Container(height: 20, width: 1, color: line),
+                              TextButton.icon(
+                                onPressed: w.busy || w.invoices.isEmpty
+                                    ? null
+                                    : () => _export('pdf'),
+                                icon: const Icon(
+                                  Icons.picture_as_pdf_outlined,
+                                  size: 16,
+                                ),
+                                label: const Text('PDF'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: navy,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          label: const Text('PDF'),
                         ),
-                        IconButton(
+                        QuietIcon(
                           tooltip: w.showPreview
                               ? 'إخفاء الصور'
                               : 'إظهار الصور',
+                          icon: w.showPreview
+                              ? Icons.hide_image_outlined
+                              : Icons.image_outlined,
+                          selected: w.showPreview,
                           onPressed: w.pages.isEmpty
                               ? null
                               : () => setState(
                                   () => w.showPreview = !w.showPreview,
                                 ),
-                          icon: Icon(
-                            w.showPreview
-                                ? Icons.hide_image_outlined
-                                : Icons.image_outlined,
-                            color: navy,
-                          ),
                         ),
-                        IconButton(
+                        QuietIcon(
                           tooltip: 'تفريغ مساحة العمل',
+                          icon: Icons.delete_sweep_outlined,
                           onPressed:
                               w.pages.isEmpty || w.scanning || w.exporting
                               ? null
                               : w.clear,
-                          icon: const Icon(
-                            Icons.delete_sweep_outlined,
-                            color: navy,
-                          ),
                         ),
                       ],
                     ),
@@ -298,42 +362,43 @@ class _WorkspaceViewState extends State<WorkspaceView>
               ),
               if (w.error != null)
                 Container(
-                  margin: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+                  margin: const EdgeInsets.fromLTRB(28, 0, 28, 14),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+                    horizontal: 14,
+                    vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3F2),
-                    borderRadius: BorderRadius.circular(7),
+                    color: const Color(0xFFFFF4F3),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     children: [
                       const Icon(
-                        Icons.error_outline,
-                        size: 18,
-                        color: Color(0xFFB33D31),
+                        Icons.error_outline_rounded,
+                        size: 17,
+                        color: Color(0xFFB45155),
                       ),
-                      const SizedBox(width: 9),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           w.error!,
                           style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF8A3028),
+                            fontSize: 12,
+                            color: Color(0xFFB45155),
                           ),
                         ),
                       ),
-                      IconButton(
+                      QuietIcon(
+                        tooltip: 'إغلاق التنبيه',
+                        icon: Icons.close_rounded,
                         onPressed: () => setState(() => w.error = null),
-                        icon: const Icon(Icons.close, size: 17),
                       ),
                     ],
                   ),
                 ),
               if (w.preparing || w.processing || w.exporting)
                 const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  padding: EdgeInsets.symmetric(horizontal: 28),
                   child: LinearProgressIndicator(
                     minHeight: 2,
                     backgroundColor: pale,
@@ -342,7 +407,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                 ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: LayoutBuilder(
                     builder: (context, c) => Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -350,11 +415,12 @@ class _WorkspaceViewState extends State<WorkspaceView>
                         Expanded(
                           child: DecoratedBox(
                             decoration: BoxDecoration(
+                              color: Colors.white,
                               border: Border.all(color: line),
-                              borderRadius: BorderRadius.circular(9),
+                              borderRadius: BorderRadius.circular(18),
                             ),
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(17),
                               child: _table(),
                             ),
                           ),
@@ -362,7 +428,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                         if (w.showPreview &&
                             w.selected != null &&
                             c.maxWidth >= 900) ...[
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 18),
                           SizedBox(width: 300, child: _preview(w.selected!)),
                         ],
                       ],
@@ -370,38 +436,34 @@ class _WorkspaceViewState extends State<WorkspaceView>
                   ),
                 ),
               ),
-              Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                child: Row(
-                  children: [
-                    Text(
-                      '${w.pages.length} فاتورة',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6C7686),
+              SizedBox(
+                height: 42,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${w.pages.length} فاتورة',
+                        style: const TextStyle(fontSize: 11, color: muted),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      '${w.invoices.length * 2} صف',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6C7686),
+                      const SizedBox(width: 18),
+                      Text(
+                        '${w.invoices.length * 2} صف',
+                        style: const TextStyle(fontSize: 11, color: muted),
                       ),
-                    ),
-                    const Spacer(),
-                    if (w.exporting)
-                      const Text(
-                        'جارٍ التصدير',
-                        style: TextStyle(fontSize: 12, color: navy),
-                      ),
-                    if (w.preparing)
-                      const Text(
-                        'جارٍ تجهيز الملفات',
-                        style: TextStyle(fontSize: 12, color: navy),
-                      ),
-                  ],
+                      const Spacer(),
+                      if (w.exporting)
+                        const Text(
+                          'جارٍ التصدير',
+                          style: TextStyle(fontSize: 11, color: muted),
+                        ),
+                      if (w.preparing)
+                        const Text(
+                          'جارٍ تجهيز الملفات',
+                          style: TextStyle(fontSize: 11, color: muted),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -410,6 +472,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
       ),
     ),
   );
+
   Future<void> _export(String format) async {
     if (!(formKey.currentState?.validate() ?? true)) return;
     await w.export(format);
@@ -430,7 +493,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
             child: Column(
               children: [
                 Container(
-                  height: 50,
+                  height: 52,
                   color: field,
                   child: Row(
                     children: [
@@ -449,7 +512,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                       ? const Center(
                           child: Icon(
                             Icons.receipt_long_outlined,
-                            size: 46,
+                            size: 48,
                             color: Color(0xFFCAD3E2),
                           ),
                         )
@@ -481,7 +544,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
         textAlign: TextAlign.center,
         style: const TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w500,
           color: navy,
         ),
       ),
@@ -579,12 +642,12 @@ class _WorkspaceViewState extends State<WorkspaceView>
       onTap: () => setState(() => w.selectedId = page.id),
       child: Container(
         height: vat
-            ? 62
+            ? 54
             : w.editing
             ? 104
-            : 70,
+            : 76,
         decoration: BoxDecoration(
-          color: vat ? const Color(0xFFFAFBFD) : null,
+          color: vat ? const Color(0xFFFBFCFE) : null,
           border: vat
               ? null
               : const Border(bottom: BorderSide(color: Color(0xFFF0F2F5))),
@@ -690,7 +753,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                         style: TextStyle(
                           fontSize: 14,
                           color: vat ? const Color(0xFF6C7686) : navy,
-                          fontWeight: vat ? FontWeight.w400 : FontWeight.w600,
+                          fontWeight: vat ? FontWeight.w400 : FontWeight.w500,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -764,67 +827,21 @@ class _WorkspaceViewState extends State<WorkspaceView>
     message: page.handwritten.isNotEmpty
         ? 'التصنيف المقروء: ${page.handwritten}'
         : 'التصنيف',
-    child: DropdownButtonFormField<String>(
-      key: ValueKey('account-${page.id}-${invoice.account}'),
-      initialValue: w.accounts.any((a) => a.code == invoice.account)
-          ? invoice.account
-          : null,
-      isExpanded: true,
-      menuMaxHeight: 360,
-      icon: const Icon(
-        Icons.keyboard_arrow_down_rounded,
-        size: 16,
-        color: blue,
-      ),
-      style: const TextStyle(fontFamily: 'Segoe UI', fontSize: 12, color: navy),
-      hint: const Text('التصنيف', style: TextStyle(fontSize: 12, color: blue)),
-      selectedItemBuilder: (context) => w.accounts
-          .map(
-            (a) => Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                a.code,
-                textDirection: TextDirection.ltr,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: navy,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          )
-          .toList(),
-      items: w.accounts
-          .map(
-            (a) => DropdownMenuItem(
-              value: a.code,
-              child: Text(
-                '${a.code} · ${a.name}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          )
-          .toList(),
+    child: AccountPicker(
+      key: ValueKey('account-${page.id}'),
+      accounts: w.accounts,
+      value: invoice.account,
       onChanged: w.busy
           ? null
-          : (v) {
-              if (v != null) {
-                w.update(page, page.invoice!.update({'categoryCode': v}));
-              }
-            },
-      decoration: InputDecoration(
-        fillColor: invoice.account.isEmpty ? pale : field,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 9, vertical: 11),
-      ),
+          : (v) => w.update(page, page.invoice!.update({'categoryCode': v})),
+      onCreate: () => showAccountsDialog(context, w),
     ),
   );
   Widget _preview(InvoicePage page) => Container(
     decoration: BoxDecoration(
       color: field,
       border: Border.all(color: line),
-      borderRadius: BorderRadius.circular(9),
+      borderRadius: BorderRadius.circular(16),
     ),
     child: Column(
       children: [

@@ -9,6 +9,7 @@ import 'package:image/image.dart' as img;
 import 'package:beyond_desktop/api.dart';
 import 'package:beyond_desktop/input.dart';
 import 'package:beyond_desktop/main.dart';
+import 'package:beyond_desktop/account_picker.dart';
 import 'package:beyond_desktop/models.dart';
 import 'package:beyond_desktop/workspace.dart';
 
@@ -166,9 +167,9 @@ void main() {
       w.pages.add(p);
       await tester.pumpWidget(BeyondApp(workspace: w));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.tap(find.byType(AccountPicker));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('005102 · مواد سباكة').last);
+      await tester.tap(find.text('مواد سباكة').last);
       await tester.pumpAndSettle();
       expect(p.invoice!.account, '005102');
       await tester.tap(find.text('تعديل جماعي'));
@@ -198,6 +199,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.runAsync(() async {
+      await (FontLoader('IBM Plex Sans Arabic')
+            ..addFont(
+              rootBundle.load('assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+            )
+            ..addFont(
+              rootBundle.load('assets/fonts/IBMPlexSansArabic-Medium.ttf'),
+            ))
+          .load();
       final icons = FontLoader('MaterialIcons')
         ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
       await icons.load();

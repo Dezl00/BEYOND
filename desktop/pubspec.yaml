@@ -1,7 +1,7 @@
 name: beyond_desktop
 description: Beyond Windows invoice workspace.
 publish_to: none
-version: 1.1.0+4
+version: 1.2.0+5
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
@@ -24,3 +24,11 @@ flutter:
   assets:
     - assets/runtime.json
     - assets/branding/
+    - assets/fonts/license.txt
+  fonts:
+    - family: IBM Plex Sans Arabic
+      fonts:
+        - asset: assets/fonts/IBMPlexSansArabic-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexSansArabic-Medium.ttf
+          weight: 500

@@ -1,6 +1,8 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <dwmapi.h>
+#include <windowsx.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -16,6 +18,10 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
 
+  // Preserve native resize borders while Flutter draws the complete caption.
+  const int corners = 2;
+  DwmSetWindowAttribute(GetHandle(), static_cast<DWMWINDOWATTRIBUTE>(33), &corners, sizeof(corners));
+  SetWindowPos(GetHandle(), nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
   RECT frame = GetClientArea();
 
   // The size here must match the window dimensions to avoid unnecessary surface
@@ -30,7 +36,12 @@ bool FlutterWindow::OnCreate() {
       flutter_controller_->engine()->messenger(), "com.beyond/startup",
       &flutter::StandardMethodCodec::GetInstance());
   startup_channel_->SetMethodCallHandler([this](const auto& call, auto result) {
-    if (call.method_name() != "ready") {result->NotImplemented();return;}
+    const auto& method = call.method_name();
+    if (method == "close") {result->Success();PostMessage(GetHandle(), WM_CLOSE, 0, 0);return;}
+    if (method == "minimize") {ShowWindow(GetHandle(), SW_MINIMIZE);result->Success();return;}
+    if (method == "toggleMaximize") {ShowWindow(GetHandle(), IsZoomed(GetHandle()) ? SW_RESTORE : SW_MAXIMIZE);result->Success();return;}
+    if (method == "drag") {result->Success();ReleaseCapture();SendMessage(GetHandle(), WM_NCLBUTTONDOWN, HTCAPTION, GetMessagePos());return;}
+    if (method != "ready") {result->NotImplemented();return;}
     dart_ready_ = true;
     result->Success();
     FinishStartup();
@@ -86,6 +97,27 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_NCCALCSIZE:
+      if (wparam) {
+        auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+        const LONG top = params->rgrc[0].top;
+        const LRESULT value = DefWindowProc(hwnd, message, wparam, lparam);
+        params->rgrc[0].top = top;
+        if (IsZoomed(hwnd)) {
+          MONITORINFO monitor = {sizeof(MONITORINFO)};
+          if (GetMonitorInfo(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) params->rgrc[0] = monitor.rcWork;
+        }
+        return value;
+      }
+      break;
+    case WM_NCHITTEST: {
+      const LRESULT normal = DefWindowProc(hwnd, message, wparam, lparam);
+      if (normal != HTCLIENT || IsZoomed(hwnd)) return normal;
+      RECT frame;GetWindowRect(hwnd, &frame);
+      const int border = GetSystemMetricsForDpi(SM_CYSIZEFRAME, GetDpiForWindow(hwnd)) + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, GetDpiForWindow(hwnd));
+      if (GET_Y_LPARAM(lparam) < frame.top + border) return HTTOP;
+      return HTCLIENT;
+    }
     case WM_TIMER:
       if (wparam == kStartupTimer) {
         KillTimer(hwnd, kStartupTimer);

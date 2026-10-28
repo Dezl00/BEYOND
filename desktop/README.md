@@ -8,11 +8,17 @@ One Arabic RTL workspace. Multiple images/PDFs (each page is a separate invoice)
 
 All invoice images, rendered PDF pages and extracted records stay in memory. Closing or clearing the workspace discards them. Only an explicit export writes a file at the user's selected path. No invoice database writes, local database, background queue or invoice cache. The OS and scanner driver control their own memory and internal caching.
 
-The backend SELECT reads only the existing category names/codes from Neon. Accounts refresh automatically every 60 seconds, on application focus and through the header sync action. Conditional ETags avoid resending an unchanged catalog; network failures retry after 15 seconds. Account changes never rewrite invoice edits. This is an online client; there is no offline processing or disk cache. A new handwritten name is displayed as source data and requires selecting an existing account; this client never registers new categories. Manage categories in the existing web application.
+The desktop reads category names/codes from Neon through the shared backend. Accounts refresh automatically every 60 seconds, on application focus and through the header sync action. Conditional ETags avoid resending an unchanged catalog; network failures retry after 15 seconds. Account changes never rewrite invoice edits. This is an online client; there is no offline processing or disk cache. A new handwritten name is displayed as source data and requires selecting an existing account; use Accounts to add that account, then select it.
+
+## Account management
+
+Accounts opens an in-app dialog for adding accounts individually or pasting up to 100 code/name pairs (Tab, | or semicolon separated). Account names can be edited; saved account codes remain fixed so existing journal references retain their meaning. All account changes are online and shared with the web database. The endpoint patches only the categories JSON field with revision compare-and-swap, merges concurrent additions, rejects duplicate codes with different names, and detects stale renames. Existing web revisions are advanced so stale web saves cannot overwrite desktop edits. No invoice or preference data is written.
+
+The new private runtime grants an explicit account-management permission. Legacy desktop capabilities continue to read, extract and export but cannot edit accounts.
 
 ## Identity and launch
 
-Version 1.1.0 opens maximized with a solid blue header, the full supplied Beyond logo and a smooth 2.2-second vector splash. The splash credits BEYOND GROUP in English; reduced animation preferences shorten the entrance. The Windows icon uses only the symbol from the supplied SVG. Startup verification waits until the workspace after the splash has rendered.
+Version 1.2.0 uses a custom blue caption with application-drawn window controls, draggable caption, double-click maximize/restore and native resize borders. The workspace, searchable account picker and account dialog use a rounded flat design with IBM Plex Sans Arabic Regular (400) and Medium (500), bundled under the included OFL license. It opens maximized with a solid blue header, the full supplied Beyond logo and a smooth 2.2-second vector splash. The splash credits BEYOND GROUP in English; reduced animation preferences shorten the entrance. The Windows icon uses only the symbol from the supplied SVG. Startup verification waits until the workspace after the splash has rendered.
 
 ## Build
 

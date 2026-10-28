@@ -5,7 +5,7 @@ import {z} from 'zod';
 export async function readDesktopCategories(owner:string){
  const url=process.env.DATABASE_URL;if(!url)throw new ApiError('اتصال التصنيفات غير متاح.',503);
  const sql=neon(url);
- // Deliberately bypass workspace migration/initialization: desktop never writes.
+ // Catalog reads bypass workspace migration/initialization and never write.
  const rows=await sql.query("SELECT data->'categories' AS categories FROM beyond_workspaces WHERE owner_id=$1",[owner]);
  const result=categorySchema.array().max(1000).safeParse(rows[0]?.categories||[]);
  if(!result.success)throw new ApiError('تعذر قراءة التصنيفات. راجع قائمتها في نسخة الويب.',503);

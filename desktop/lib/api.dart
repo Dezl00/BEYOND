@@ -59,6 +59,10 @@ class BeyondApi {
     if (response.statusCode == 304 && etag != null) {
       return AccountCatalogUpdate(etag: response.headers['etag'] ?? etag);
     }
+    return _accountCatalog(response);
+  }
+
+  AccountCatalogUpdate _accountCatalog(http.Response response) {
     _check(response);
     final body =
         jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
@@ -77,6 +81,34 @@ class BeyondApi {
       accounts: accounts,
       etag: response.headers['etag'],
     );
+  }
+
+  Future<AccountCatalogUpdate> saveAccounts(
+    List<Account> accounts, {
+    Account? previous,
+  }) async {
+    final response = await _client
+        .post(
+          endpoint('categories'),
+          headers: {...headers, 'Content-Type': 'application/json'},
+          body: jsonEncode(
+            previous == null
+                ? {
+                    'action': 'add',
+                    'categories': accounts
+                        .map((a) => {'code': a.code, 'name': a.name})
+                        .toList(),
+                  }
+                : {
+                    'action': 'rename',
+                    'code': previous.code,
+                    'previousName': previous.name,
+                    'name': accounts.single.name,
+                  },
+          ),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _accountCatalog(response);
   }
 
   Future<({Invoice invoice, String handwritten})> extract(
