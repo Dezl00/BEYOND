@@ -15,7 +15,7 @@ The backend SELECT reads only the existing category names/codes from Neon. A new
 Use Flutter 3.44.9 and Visual Studio Desktop development with C++.
 
 1. Copy assets/runtime.example.json to assets/runtime.json for tests, or generate a private linked configuration using the script below.
-2. flutter pub get
+2. flutter pub get --enforce-lockfile
 3. flutter analyze --no-pub --fatal-infos
 4. flutter test --no-pub
 5. flutter build windows --release --no-pub

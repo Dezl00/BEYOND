@@ -29,8 +29,7 @@ jobs:
       - name: Prepare unconfigured runtime
         run: Copy-Item assets/runtime.example.json assets/runtime.json
       - run: flutter config --no-analytics
-      # Resolve SDK-pinned test/framework packages when changing Flutter versions.
-      - run: flutter pub get
+      - run: flutter pub get --enforce-lockfile
       - run: flutter analyze --no-pub --fatal-infos
       - run: flutter test --no-pub
       - run: flutter build windows --release --no-pub
