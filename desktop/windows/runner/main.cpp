@@ -44,7 +44,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance,_In_opt_ HINSTANCE prev,
  {
   FlutterWindow window(project,verify);
   Win32Window::Point origin(60,40);Win32Window::Size size(1440,900);
-  if(!window.Create(L"Beyond",origin,size)) {
+  if(!window.Create(L"BEYOND GROUP",origin,size)) {
    if(!verify)MessageBoxW(nullptr,L"تعذر بدء واجهة Beyond. تحقق من اكتمال ملفات التشغيل وتعريف كارت الشاشة.",L"Beyond",MB_OK|MB_ICONERROR);
    exit_code=5;
   }else{

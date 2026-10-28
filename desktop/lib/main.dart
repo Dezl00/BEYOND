@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'models.dart';
+import 'branding.dart';
 import 'startup.dart';
 import 'workspace.dart';
 
@@ -12,20 +13,18 @@ const navy = Color(0xFF173569),
     line = Color(0xFFE5E8ED),
     field = Color(0xFFF5F6F8);
 void main() {
-  final binding = WidgetsFlutterBinding.ensureInitialized();
-  binding.addPostFrameCallback((_) {
-    notifyNativeReady();
-  });
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const BeyondApp());
 }
 
 class BeyondApp extends StatelessWidget {
   final Workspace? workspace;
-  const BeyondApp({super.key, this.workspace});
+  final bool? showSplash;
+  const BeyondApp({super.key, this.workspace, this.showSplash});
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    title: 'Beyond',
+    title: 'BEYOND GROUP',
     locale: const Locale('ar'),
     supportedLocales: const [Locale('ar'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -70,18 +69,71 @@ class BeyondApp extends StatelessWidget {
         waitDuration: Duration(milliseconds: 450),
       ),
     ),
-    home: WorkspaceView(workspace: workspace),
+    home: (showSplash ?? workspace == null)
+        ? BootScreen(workspace: workspace)
+        : WorkspaceView(workspace: workspace),
+  );
+}
+
+class BootScreen extends StatefulWidget {
+  final Workspace? workspace;
+  const BootScreen({super.key, this.workspace});
+  @override
+  State<BootScreen> createState() => _BootScreenState();
+}
+
+class _BootScreenState extends State<BootScreen> {
+  late final Workspace workspace;
+  bool splash = true;
+  @override
+  void initState() {
+    super.initState();
+    workspace = widget.workspace ?? Workspace();
+    if (widget.workspace == null) workspace.initialize();
+  }
+
+  @override
+  void dispose() {
+    workspace.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: const Duration(milliseconds: 380),
+    switchInCurve: Curves.easeOutCubic,
+    switchOutCurve: Curves.easeInCubic,
+    child: splash
+        ? BrandSplash(
+            key: const ValueKey('brand-splash'),
+            onComplete: () {
+              if (mounted) setState(() => splash = false);
+            },
+          )
+        : WorkspaceView(
+            key: const ValueKey('workspace'),
+            workspace: workspace,
+            ownsWorkspace: false,
+            notifyReady: true,
+          ),
   );
 }
 
 class WorkspaceView extends StatefulWidget {
   final Workspace? workspace;
-  const WorkspaceView({super.key, this.workspace});
+  final bool ownsWorkspace, notifyReady;
+  const WorkspaceView({
+    super.key,
+    this.workspace,
+    this.ownsWorkspace = true,
+    this.notifyReady = false,
+  });
   @override
   State<WorkspaceView> createState() => _WorkspaceViewState();
 }
 
-class _WorkspaceViewState extends State<WorkspaceView> {
+class _WorkspaceViewState extends State<WorkspaceView>
+    with WidgetsBindingObserver {
   late final Workspace w;
   final horizontal = ScrollController();
   final vertical = ScrollController();
@@ -89,15 +141,29 @@ class _WorkspaceViewState extends State<WorkspaceView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     w = widget.workspace ?? Workspace();
+    if (widget.notifyReady) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyNativeReady();
+      });
+    }
     if (widget.workspace == null) w.initialize();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && w.initialized) {
+      w.synchronizeAccounts();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     horizontal.dispose();
     vertical.dispose();
-    w.dispose();
+    if (widget.ownsWorkspace) w.dispose();
     super.dispose();
   }
 
@@ -110,80 +176,7 @@ class _WorkspaceViewState extends State<WorkspaceView> {
           key: formKey,
           child: Column(
             children: [
-              Container(
-                height: 80,
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: line)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: navy,
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: const Text(
-                        'B',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'BEYOND',
-                      style: TextStyle(
-                        color: navy,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    const Text(
-                      'الفواتير',
-                      style: TextStyle(fontSize: 15, color: Color(0xFF606A7B)),
-                    ),
-                    const Spacer(),
-                    if (w.loading)
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: pale,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          '${w.accounts.length} حساب',
-                          style: const TextStyle(color: navy, fontSize: 12),
-                        ),
-                      ),
-                    IconButton(
-                      tooltip: 'تحديث التصنيفات',
-                      onPressed: w.busy || w.loading ? null : w.initialize,
-                      icon: const Icon(
-                        Icons.sync_rounded,
-                        size: 20,
-                        color: navy,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              BrandHeader(workspace: w),
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 18),
                 child: LayoutBuilder(

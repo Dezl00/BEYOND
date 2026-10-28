@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "Beyond" "\0"
-            VALUE "FileDescription", "Beyond" "\0"
+            VALUE "CompanyName", "BEYOND GROUP" "\0"
+            VALUE "FileDescription", "BEYOND GROUP" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "Beyond" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 Beyond." "\0"
             VALUE "OriginalFilename", "Beyond.exe" "\0"
-            VALUE "ProductName", "Beyond" "\0"
+            VALUE "ProductName", "BEYOND GROUP" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

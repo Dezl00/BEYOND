@@ -1,7 +1,7 @@
 name: beyond_desktop
 description: Beyond Windows invoice workspace.
 publish_to: none
-version: 1.0.2+3
+version: 1.1.0+4
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
@@ -9,6 +9,7 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_svg: 2.3.0
   file_selector: 1.1.0
   http: 1.6.0
   http_parser: ^4.1.2
@@ -22,3 +23,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/runtime.json
+    - assets/branding/

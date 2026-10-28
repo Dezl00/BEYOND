@@ -8,7 +8,11 @@ One Arabic RTL workspace. Multiple images/PDFs (each page is a separate invoice)
 
 All invoice images, rendered PDF pages and extracted records stay in memory. Closing or clearing the workspace discards them. Only an explicit export writes a file at the user's selected path. No invoice database writes, local database, background queue or invoice cache. The OS and scanner driver control their own memory and internal caching.
 
-The backend SELECT reads only the existing category names/codes from Neon. A new handwritten name is displayed as source data and requires selecting an existing account; this client never registers new categories. Manage categories in the existing web application.
+The backend SELECT reads only the existing category names/codes from Neon. Accounts refresh automatically every 60 seconds, on application focus and through the header sync action. Conditional ETags avoid resending an unchanged catalog; network failures retry after 15 seconds. Account changes never rewrite invoice edits. This is an online client; there is no offline processing or disk cache. A new handwritten name is displayed as source data and requires selecting an existing account; this client never registers new categories. Manage categories in the existing web application.
+
+## Identity and launch
+
+Version 1.1.0 opens maximized with a solid blue header, the full supplied Beyond logo and a smooth 2.2-second vector splash. The splash credits BEYOND GROUP in English; reduced animation preferences shorten the entrance. The Windows icon uses only the symbol from the supplied SVG. Startup verification waits until the workspace after the splash has rendered.
 
 ## Build
 

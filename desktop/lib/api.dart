@@ -47,14 +47,36 @@ class BeyondApi {
     'Cache-Control': 'no-store',
   };
   Uri endpoint(String path) => config.base.resolve('/api/desktop/$path');
-  Future<List<Account>> categories() async {
+  Future<List<Account>> categories() async =>
+      (await synchronizeAccounts()).accounts!;
+  Future<AccountCatalogUpdate> synchronizeAccounts({String? etag}) async {
     final response = await _client
-        .get(endpoint('categories'), headers: headers)
-        .timeout(const Duration(seconds: 30));
+        .get(
+          endpoint('categories'),
+          headers: {...headers, 'If-None-Match': ?etag},
+        )
+        .timeout(const Duration(seconds: 12));
+    if (response.statusCode == 304 && etag != null) {
+      return AccountCatalogUpdate(etag: response.headers['etag'] ?? etag);
+    }
     _check(response);
-    return (jsonDecode(utf8.decode(response.bodyBytes))['categories'] as List)
+    final body =
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+    final values = body['categories'];
+    if (values is! List || values.length > 1000) {
+      throw const ApiException('قائمة الحسابات غير صالحة.', 502);
+    }
+    final accounts = values
         .map((e) => Account.fromJson(e as Map<String, dynamic>))
         .toList();
+    if (accounts.any((a) => a.code.isEmpty || a.name.isEmpty) ||
+        accounts.map((a) => a.code).toSet().length != accounts.length) {
+      throw const ApiException('قائمة الحسابات غير مكتملة.', 502);
+    }
+    return AccountCatalogUpdate(
+      accounts: accounts,
+      etag: response.headers['etag'],
+    );
   }
 
   Future<({Invoice invoice, String handwritten})> extract(
@@ -136,4 +158,10 @@ class BeyondApi {
     cancelExtraction();
     _client.close();
   }
+}
+
+class AccountCatalogUpdate {
+  final List<Account>? accounts;
+  final String? etag;
+  const AccountCatalogUpdate({this.accounts, this.etag});
 }

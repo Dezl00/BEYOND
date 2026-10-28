@@ -42,7 +42,7 @@ bool FlutterWindow::OnCreate() {
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     first_frame_ = true;
-    if (!verify_startup_) this->Show();
+    if (!verify_startup_) ShowWindow(GetHandle(), SW_SHOWMAXIMIZED);
     FinishStartup();
   });
 

@@ -26,7 +26,19 @@ class Workspace extends ChangeNotifier {
   String? selectedId;
   int _generation = 0;
   bool _disposed = false;
-  Workspace({this.api});
+  final bool automaticAccountSync;
+  final Duration accountSyncInterval, accountRetryInterval;
+  Timer? _accountSyncTimer;
+  String? _accountEtag;
+  bool accountSyncing = false, initialized = false;
+  String? accountSyncError;
+  DateTime? lastAccountSync;
+  Workspace({
+    this.api,
+    this.automaticAccountSync = true,
+    this.accountSyncInterval = const Duration(seconds: 60),
+    this.accountRetryInterval = const Duration(seconds: 15),
+  });
   bool get busy => preparing || processing || scanning || exporting;
   List<Invoice> get invoices =>
       pages.where((p) => p.invoice != null).map((p) => p.invoice!).toList();
@@ -36,18 +48,39 @@ class Workspace extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> initialize() async {
-    loading = true;
-    error = null;
+  Future<void> initialize() => synchronizeAccounts();
+
+  Future<void> synchronizeAccounts() async {
+    if (_disposed || accountSyncing) return;
+    initialized = true;
+    _accountSyncTimer?.cancel();
+    _accountSyncTimer = null;
+    accountSyncing = true;
     changed();
     try {
       api ??= BeyondApi(await RuntimeConfig.load());
-      accounts = await api!.categories();
+      final update = await api!.synchronizeAccounts(etag: _accountEtag);
+      if (_disposed) return;
+      if (update.accounts != null) {
+        accounts = List.unmodifiable(update.accounts!);
+      }
+      _accountEtag = update.etag;
+      lastAccountSync = DateTime.now();
+      accountSyncError = null;
     } catch (e) {
-      error = friendly(e);
+      if (!_disposed) accountSyncError = friendly(e);
     } finally {
+      accountSyncing = false;
       loading = false;
       changed();
+      if (!_disposed && automaticAccountSync) {
+        _accountSyncTimer = Timer(
+          accountSyncError == null ? accountSyncInterval : accountRetryInterval,
+          () {
+            synchronizeAccounts();
+          },
+        );
+      }
     }
   }
 
@@ -264,6 +297,7 @@ class Workspace extends ChangeNotifier {
 
   @override
   void dispose() {
+    _accountSyncTimer?.cancel();
     if (scanning) cancelScanner();
     _disposed = true;
     _generation++;

@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {categoryResponse} from '../lib/category-response';
+const categories=[{code:'005101',name:'مواد كهرباء'}];
+const request=(etag?:string)=>new Request('https://beyond.test/api/desktop/categories',{headers:etag?{'If-None-Match':etag}:{}});
+test('catalog snapshots retain account codes and provide a content ETag',async()=>{const response=categoryResponse(request(),categories);assert.equal(response.status,200);assert.match(response.headers.get('etag')||'',/^"accounts-[a-f0-9]{64}"$/);assert.deepEqual(await response.json(),{categories});assert.match(response.headers.get('cache-control')||'',/no-store/);});
+test('an unchanged catalog responds without a body and keeps the same ETag',async()=>{const etag=categoryResponse(request(),categories).headers.get('etag')!;const response=categoryResponse(request(etag),categories);assert.equal(response.status,304);assert.equal(await response.text(),'');assert.equal(response.headers.get('etag'),etag);});
+test('changed codes, names and removals produce a fresh authoritative snapshot',async()=>{const old=categoryResponse(request(),categories).headers.get('etag')!;for(const updated of [[{code:'005102',name:'مواد كهرباء'}],[{code:'005101',name:'مواد سباكة'}],[]]){const response=categoryResponse(request(old),updated);assert.equal(response.status,200);assert.notEqual(response.headers.get('etag'),old);assert.deepEqual(await response.json(),{categories:updated});}});
+test('conditional catalog reads accept weak and listed ETags',()=>{const etag=categoryResponse(request(),categories).headers.get('etag')!;assert.equal(categoryResponse(request('W/'+etag),categories).status,304);assert.equal(categoryResponse(request('"other", '+etag),categories).status,304);assert.equal(categoryResponse(request('"other"'),categories).status,200);});

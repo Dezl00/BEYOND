@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 44.32 54">
+  <defs>
+    <clipPath id="clippath">
+      <polygon fill="none" points="44.32 22.85 44.32 8.97 23.62 23.39 32.44 31.15 44.32 22.85"/>
+    </clipPath>
+    <linearGradient id="linear-gradient" x1="-443.1" y1="18.9" x2="-442.1" y2="18.9" gradientTransform="translate(16452.66 -681.42) scale(37.12)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#010101"/>
+      <stop offset="1" stop-color="#efedee"/>
+    </linearGradient>
+    <clipPath id="clippath-1">
+      <polygon fill="none" points="0 14.05 44.21 47.74 44.21 33.8 0 0 0 14.05"/>
+    </clipPath>
+    <linearGradient id="linear-gradient-2" x1="-456.19" y1="13.38" x2="-455.19" y2="13.38" gradientTransform="translate(-840.32 -29302.52) rotate(-90) scale(64.45)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#010101"/>
+      <stop offset=".1" stop-color="#201f20"/>
+      <stop offset=".35" stop-color="#616161"/>
+      <stop offset=".56" stop-color="#969596"/>
+      <stop offset=".75" stop-color="#bbbabb"/>
+      <stop offset=".9" stop-color="#d2d1d2"/>
+      <stop offset="1" stop-color="#dbdadb"/>
+    </linearGradient>
+  </defs>
+  <g id="Layer_2-2" data-name="Layer 2">
+    <g id="Layer_1-2" data-name="Layer 1-2">
+      <g>
+        <g clip-path="url(#clippath)">
+          <rect fill="url(#linear-gradient)" x="19.06" y="4.98" width="29.83" height="30.14" transform="translate(-5.26 24.15) rotate(-36.52)"/>
+        </g>
+        <polygon fill="#2650a0" points="23.62 23.39 0 39.84 0 53.82 32.44 31.15 23.62 23.39"/>
+        <polygon fill="#34abd7" points="0 0 33.24 0 44.32 8.97 34.91 15.52 29.15 11.02 14.02 11.02 0 0"/>
+        <polygon fill="#2650a0" points="1.4 54 32.81 54 44.21 47.74 36.16 41.6 30.34 45.62 13.72 45.59 1.4 54"/>
+        <g clip-path="url(#clippath-1)">
+          <rect fill="url(#linear-gradient-2)" x="-9.91" y="-7.63" width="64.06" height="63.01" transform="translate(-9.93 29.57) rotate(-57.26)"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
