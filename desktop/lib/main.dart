@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'models.dart';
+import 'startup.dart';
 import 'workspace.dart';
 
 const navy = Color(0xFF173569),
@@ -11,7 +12,10 @@ const navy = Color(0xFF173569),
     line = Color(0xFFE5E8ED),
     field = Color(0xFFF5F6F8);
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  binding.addPostFrameCallback((_) {
+    notifyNativeReady();
+  });
   runApp(const BeyondApp());
 }
 

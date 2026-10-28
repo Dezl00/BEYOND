@@ -13,7 +13,7 @@
 class FlutterWindow : public Win32Window {
  public:
   // Creates a new FlutterWindow hosting a Flutter view running |project|.
-  explicit FlutterWindow(const flutter::DartProject& project);
+  explicit FlutterWindow(const flutter::DartProject& project, bool verify_startup = false);
   virtual ~FlutterWindow();
 
  protected:
@@ -24,6 +24,12 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  void FinishStartup();
+  bool verify_startup_ = false;
+  bool first_frame_ = false;
+  bool dart_ready_ = false;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> startup_channel_;
+
   // The project to run.
   flutter::DartProject project_;
 

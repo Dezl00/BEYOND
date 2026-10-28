@@ -22,14 +22,15 @@ jobs:
       - name: Flutter SDK
         working-directory: ${{ runner.temp }}
         run: |
-          Invoke-WebRequest -Uri 'https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.47.8-stable.zip' -OutFile flutter.zip
-          if ((Get-FileHash flutter.zip -Algorithm SHA256).Hash.ToLower() -ne '11e19ea3409808fe3b3765ea8149640c299e58cce6eda7c9f38fc1b4a193eb6e') { throw 'SDK checksum mismatch' }
+          Invoke-WebRequest -Uri 'https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.44.9-stable.zip' -OutFile flutter.zip
+          if ((Get-FileHash flutter.zip -Algorithm SHA256).Hash.ToLower() -ne '8ef1107d226654736755bc51b969d6bd46787ff0241650f942e774fb0ca7d0ac') { throw 'SDK checksum mismatch' }
           tar -xf flutter.zip
           "${env:RUNNER_TEMP}/flutter/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Prepare unconfigured runtime
         run: Copy-Item assets/runtime.example.json assets/runtime.json
       - run: flutter config --no-analytics
-      - run: flutter pub get --enforce-lockfile
+      # Resolve SDK-pinned test/framework packages when changing Flutter versions.
+      - run: flutter pub get
       - run: flutter analyze --no-pub --fatal-infos
       - run: flutter test --no-pub
       - run: flutter build windows --release --no-pub
@@ -39,6 +40,19 @@ jobs:
           $crt = Get-ChildItem "$vs/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT" -Directory | Sort-Object FullName | Select-Object -Last 1
           if (-not $crt) { throw 'Microsoft C++ runtime missing' }
           Copy-Item "$($crt.FullName)/*.dll" build/windows/x64/runner/Release/
+      - name: Verify packaged release startup
+        run: |
+          $release = (Resolve-Path build/windows/x64/runner/Release).Path
+          $process = Start-Process -FilePath "$release/Beyond.exe" -ArgumentList '--verify-startup' -WorkingDirectory $env:RUNNER_TEMP -WindowStyle Hidden -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Release did not render the first Flutter frame and complete the Dart handshake' }
+          if ($process.ExitCode -ne 0) { throw "Release startup failed: $($process.ExitCode)" }
+          Write-Output 'Release first frame and Dart startup handshake verified'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Beyond-Windows-dependencies
+          path: desktop/pubspec.lock
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: Beyond-Windows-x64
