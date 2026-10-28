@@ -1,0 +1,109 @@
+import 'dart:math' as math;
+
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:image/image.dart' as img;
+import 'package:pdfx/pdfx.dart';
+
+import 'api.dart';
+import 'models.dart';
+
+const invoiceTypes = XTypeGroup(
+  label: 'الفواتير',
+  extensions: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'tif', 'tiff', 'pdf'],
+);
+const scanner = MethodChannel('com.beyond/scanner');
+Uint8List normalizeImage(Uint8List bytes) {
+  final decoder = img.findDecoderForData(bytes);
+  final info = decoder?.startDecode(bytes);
+  if (info == null || info.width * info.height > 60000000) {
+    throw const ApiException('الصورة غير صالحة أو أبعادها كبيرة جدًا.');
+  }
+  var image = decoder!.decodeFrame(0);
+  if (image == null) throw const ApiException('تعذر قراءة الصورة.');
+  image = img.bakeOrientation(image);
+  if (math.max(image.width, image.height) > 2500) {
+    image = img.copyResize(
+      image,
+      width: image.width >= image.height ? 2500 : null,
+      height: image.height > image.width ? 2500 : null,
+      interpolation: img.Interpolation.average,
+    );
+  }
+  var result = Uint8List.fromList(img.encodeJpg(image, quality: 88));
+  if (result.length > 3900000) {
+    result = Uint8List.fromList(
+      img.encodeJpg(
+        img.copyResize(
+          image,
+          width: (image.width * .8).round(),
+          height: (image.height * .8).round(),
+        ),
+        quality: 76,
+      ),
+    );
+  }
+  if (result.length > 3900000) {
+    throw const ApiException('تعذر ضغط الصورة للحجم المسموح.');
+  }
+  return result;
+}
+
+Future<List<InvoicePage>> prepareFile(XFile file, int remaining) async {
+  if (await file.length() > 25 * 1024 * 1024) {
+    throw ApiException('الملف ${file.name} يتجاوز 25 ميجابايت.');
+  }
+  final bytes = await file.readAsBytes();
+  final name = file.name.length > 280 ? file.name.substring(0, 280) : file.name;
+  final id = DateTime.now().microsecondsSinceEpoch.toString();
+  if (!name.toLowerCase().endsWith('.pdf')) {
+    return [
+      InvoicePage(
+        id: id,
+        name: name,
+        bytes: await compute(normalizeImage, bytes),
+      ),
+    ];
+  }
+  final document = await PdfDocument.openData(bytes);
+  try {
+    if (document.pagesCount > remaining) {
+      throw const ApiException('الحد الأقصى للدفعة 50 فاتورة أو صفحة.');
+    }
+    final pages = <InvoicePage>[];
+    for (var n = 1; n <= document.pagesCount; n++) {
+      final page = await document.getPage(n);
+      try {
+        final ratio = 2400 / math.max(page.width, page.height);
+        final render = await page.render(
+          width: page.width * ratio,
+          height: page.height * ratio,
+          format: PdfPageImageFormat.jpeg,
+          backgroundColor: '#FFFFFF',
+        );
+        if (render == null) {
+          throw const ApiException('تعذر قراءة إحدى صفحات PDF.');
+        }
+        pages.add(
+          InvoicePage(
+            id: '$id-$n',
+            name: name,
+            page: n,
+            bytes: await compute(normalizeImage, render.bytes),
+          ),
+        );
+      } finally {
+        await page.close();
+      }
+    }
+    return pages;
+  } finally {
+    await document.close();
+  }
+}
+
+Future<List<Uint8List>> acquireScan() async {
+  final result = await scanner.invokeListMethod<Uint8List>('scan');
+  return result ?? [];
+}

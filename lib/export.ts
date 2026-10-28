@@ -2,7 +2,7 @@ import {type Invoice,type Preferences,type Category,exportColumns,exportRows} fr
 import {layoutPdfPages,paintPdfPage,type CanvasFactory} from './pdf-canvas';
 const filename=(extension:string)=>'Beyond-Journal-'+new Date().toISOString().slice(0,10)+'.'+extension;
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
-export async function exportExcel(invoices:Invoice[],categories:Category[],prefs:Preferences){
+export async function createExcelBytes(invoices:Invoice[],categories:Category[],prefs:Preferences){
  if(!invoices.length)throw new Error('لا توجد فواتير للتصدير.');
  const {Workbook}=await import('exceljs');
  const workbook=new Workbook();workbook.creator=prefs.company||'Beyond';workbook.created=new Date();
@@ -31,6 +31,10 @@ export async function exportExcel(invoices:Invoice[],categories:Category[],prefs
  sheet.autoFilter={from:{row:1,column:1},to:{row:records.length+1,column:5}};
  sheet.pageSetup.printTitlesRow='1:1';sheet.pageSetup.printArea='A1:E'+(records.length+1);
  const bytes=await workbook.xlsx.writeBuffer();
+ return new Uint8Array(bytes as ArrayBuffer);
+}
+export async function exportExcel(invoices:Invoice[],categories:Category[],prefs:Preferences){
+ const bytes=await createExcelBytes(invoices,categories,prefs);
  download(new Blob([bytes as BlobPart],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),filename('xlsx'));
 }
 export async function createPdfBytes(invoices:Invoice[],categories:Category[],prefs:Preferences,createCanvas:CanvasFactory=()=>document.createElement('canvas')){
