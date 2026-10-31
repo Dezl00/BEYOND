@@ -22,7 +22,7 @@ const printing=['طباعه','طباعات','طبع','تصوير','استنسا�
 const fuel=['بنزين','بترول','ديزل','وقود','محروقات','gasoline','petrol','diesel','fuel','unleaded'];
 const parts=['فلتر','طرمبه','مضخه','حساس','خرطوم','غطاء','filter','pump','sensor','hose'];
 const names:Record<ExpenseRule,string>={operating:'مصاريف تشغيل',stationery:'قرطاسية',fuel:'محروقات'};
-const aliases:Record<ExpenseRule,string[]>={operating:['مصاريف تشغيل','مصاريف التشغيل','مصروفات تشغيل','مصروفات التشغيل','مصاريف تشغيلية'],stationery:['قرطاسية تشغيلي','قرطاسية تشغيلى','مصاريف قرطاسية','مصروفات قرطاسية'],fuel:['محروقات','مصاريف محروقات','مصروفات محروقات']};
+const aliases:Record<ExpenseRule,string[]>={operating:['مصاريف تشغيل','مصاريف التشغيل','مصروفات تشغيل','مصروفات التشغيل','مصاريف تشغيلية'],stationery:['قرطاسية','قرطاسية تشغيلي','قرطاسية تشغيلى','مصاريف قرطاسية','مصروفات قرطاسية'],fuel:['محروقات','مصاريف محروقات','مصروفات محروقات']};
 export function resolveExpenseRule(items:readonly string[],categories:Category[]):{handled:boolean;rule:ExpenseRule|'mixed'|null;category:Category|null;warning?:string}{
  const found=new Set<ExpenseRule>();
  for(const item of items){

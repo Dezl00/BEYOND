@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -15,7 +16,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      late final ui.Image source;
+      late final Uint8List bytes;
       await tester.runAsync(() async {
         await (FontLoader(
           'MaterialIcons',
@@ -37,11 +38,12 @@ void main() {
           );
         }
         final picture = recorder.endRecording();
-        source = await picture.toImage(500, 700);
+        final source = await picture.toImage(500, 700);
         picture.dispose();
+        final data = await source.toByteData(format: ui.ImageByteFormat.png);
+        bytes = data!.buffer.asUint8List();
+        source.dispose();
       });
-      final data = await source.toByteData(format: ui.ImageByteFormat.png);
-      source.dispose();
       final key = GlobalKey();
       await tester.pumpWidget(
         RepaintBoundary(
@@ -57,7 +59,7 @@ void main() {
                     width: 360,
                     height: 700,
                     child: InvoicePreview(
-                      bytes: data!.buffer.asUint8List(),
+                      bytes: bytes,
                       name: 'invoice-050.jpg',
                       onClose: () {},
                     ),
