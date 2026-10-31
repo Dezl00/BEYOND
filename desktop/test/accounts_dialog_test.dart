@@ -143,4 +143,87 @@ void main() {
     expect(find.text('أدخل كود الحساب'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'existing account codes and names can be edited and deletion is confirmed',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var writes = 0;
+      final w =
+          Workspace(
+              automaticAccountSync: false,
+              api: BeyondApi(
+                RuntimeConfig(Uri.parse('https://beyond.test'), 'test-token'),
+                client: MockClient((request) async {
+                  final body = jsonDecode(request.body) as Map;
+                  writes++;
+                  if (writes == 1) {
+                    expect(body, {
+                      'action': 'update',
+                      'previous': {'code': '001', 'name': 'قديم'},
+                      'category': {'code': '002', 'name': 'جديد'},
+                    });
+                    return http.Response(
+                      jsonEncode({
+                        'categories': [
+                          {'code': '002', 'name': 'جديد'},
+                        ],
+                      }),
+                      200,
+                      headers: {
+                        'content-type': 'application/json; charset=utf-8',
+                      },
+                    );
+                  }
+                  expect(body, {
+                    'action': 'delete',
+                    'category': {'code': '002', 'name': 'جديد'},
+                  });
+                  return http.Response(
+                    '{"categories":[]}',
+                    200,
+                    headers: {
+                      'content-type': 'application/json; charset=utf-8',
+                    },
+                  );
+                }),
+              ),
+            )
+            ..loading = false
+            ..accounts = [const Account('001', 'قديم')];
+      addTearDown(w.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: beyondTheme(),
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(body: AccountsDialog(workspace: w)),
+          ),
+        ),
+      );
+      await tester.tap(find.text('قديم'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('catalog-code')), '002');
+      await tester.enterText(
+        find.byKey(const ValueKey('catalog-name')),
+        'جديد',
+      );
+      await tester.tap(find.text('حفظ التعديل'));
+      await tester.pumpAndSettle();
+      expect(w.accounts.single.code, '002');
+      await tester.tap(find.text('جديد').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('حذف الحساب'));
+      await tester.pumpAndSettle();
+      expect(find.byType(DeleteAccountDialog), findsOneWidget);
+      expect(writes, 1);
+      await tester.tap(find.text('حذف'));
+      await tester.pumpAndSettle();
+      expect(w.accounts, isEmpty);
+      expect(writes, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

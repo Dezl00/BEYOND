@@ -104,6 +104,54 @@ class Workspace extends ChangeNotifier {
     try {
       final result = await api!.saveAccounts(changes, previous: previous);
       if (_disposed) return;
+      if (previous != null && previous.code != changes.single.code) {
+        _remapInvoices(previous.code, changes.single.code);
+      }
+      accounts = List.unmodifiable(result.accounts!);
+      _accountEtag = result.etag;
+      accountSyncError = null;
+      lastAccountSync = DateTime.now();
+    } finally {
+      accountSaving = false;
+      _scheduleAccountSync();
+      changed();
+    }
+  }
+
+  void _remapInvoices(String from, String to) {
+    for (final page in pages) {
+      if (page.invoice?.account == from) {
+        page.invoice = page.invoice!.update({'categoryCode': to});
+      }
+    }
+  }
+
+  Future<void> deleteAccount(Account account, {String? replacementCode}) async {
+    if (accountSaving || _disposed) return;
+    if (api == null)
+      throw const ApiException('اتصال الحسابات غير متاح. أعد المزامنة.');
+    if (replacementCode == account.code ||
+        (replacementCode != null &&
+            !accounts.any((a) => a.code == replacementCode))) {
+      throw const ApiException('اختر حسابًا بديلًا صالحًا.');
+    }
+    if (replacementCode == null &&
+        pages.any((p) => p.invoice?.account == account.code)) {
+      throw const ApiException(
+        'الحساب مرتبط بفواتير المعاينة. اختر حسابًا بديلًا.',
+      );
+    }
+    accountSaving = true;
+    _accountGeneration++;
+    changed();
+    try {
+      final result = await api!.deleteAccount(
+        account,
+        replacementCode: replacementCode,
+      );
+      if (_disposed) return;
+      if (replacementCode != null)
+        _remapInvoices(account.code, replacementCode);
       accounts = List.unmodifiable(result.accounts!);
       _accountEtag = result.etag;
       accountSyncError = null;

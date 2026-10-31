@@ -176,4 +176,92 @@ void main() {
       w.dispose();
     },
   );
+  test(
+    'editing an account sends its previous identity and remaps preview references without changing amounts',
+    () async {
+      final w = Workspace(
+        automaticAccountSync: false,
+        api: BeyondApi(
+          config,
+          client: MockClient((request) async {
+            expect(jsonDecode(request.body), {
+              'action': 'update',
+              'previous': {'code': '001', 'name': 'قديم'},
+              'category': {'code': '002', 'name': 'جديد'},
+            });
+            return catalog('002', 'جديد', '"new"');
+          }),
+        ),
+      )..accounts = [const Account('001', 'قديم')];
+      w.pages.add(
+        InvoicePage(id: 'p', name: 'invoice', bytes: Uint8List(0))
+          ..invoice = Invoice({
+            'id': 'i',
+            'categoryCode': '001',
+            'netCents': 11500,
+            'taxCents': 0,
+            'grossCents': 11500,
+            'companyTaxIdPresent': false,
+            'supplier': 'المورد',
+          }),
+      );
+      final before = Map<String, dynamic>.of(w.pages.single.invoice!.data);
+      await w.saveAccountChanges([
+        const Account('002', 'جديد'),
+      ], previous: const Account('001', 'قديم'));
+      expect(w.pages.single.invoice!.data, {...before, 'categoryCode': '002'});
+      expect(w.accounts.single.code, '002');
+      w.dispose();
+    },
+  );
+  test(
+    'deleting a preview account requires a replacement and synchronizes that remapping',
+    () async {
+      var writes = 0;
+      final w =
+          Workspace(
+              automaticAccountSync: false,
+              api: BeyondApi(
+                config,
+                client: MockClient((request) async {
+                  writes++;
+                  expect(jsonDecode(request.body), {
+                    'action': 'delete',
+                    'category': {'code': '001', 'name': 'قديم'},
+                    'replacementCode': '002',
+                  });
+                  return catalog('002', 'بديل', '"new"');
+                }),
+              ),
+            )
+            ..accounts = [
+              const Account('001', 'قديم'),
+              const Account('002', 'بديل'),
+            ];
+      w.pages.add(
+        InvoicePage(id: 'p', name: 'invoice', bytes: Uint8List(0))
+          ..invoice = Invoice({
+            'id': 'i',
+            'categoryCode': '001',
+            'netCents': 10000,
+            'taxCents': 1500,
+            'grossCents': 11500,
+          }),
+      );
+      await expectLater(
+        w.deleteAccount(const Account('001', 'قديم')),
+        throwsA(isA<ApiException>()),
+      );
+      expect(writes, 0);
+      await w.deleteAccount(
+        const Account('001', 'قديم'),
+        replacementCode: '002',
+      );
+      expect(writes, 1);
+      expect(w.pages.single.invoice!.account, '002');
+      expect(w.pages.single.invoice!.gross, 11500);
+      expect(w.pages.single.invoice!.tax, 1500);
+      w.dispose();
+    },
+  );
 }

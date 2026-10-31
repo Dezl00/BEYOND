@@ -27,7 +27,7 @@ export default function WorkspaceApp(){
  const fileInput=useRef<HTMLInputElement>(null);const [jobs,setJobs]=useState<UploadJob[]>([]);const [pending,setPending]=useState<Invoice[]>([]);
  const batchVersion=useRef(0),uploadAbort=useRef<AbortController|null>(null);const pendingRef=useRef<Invoice[]>([]);const [processing,setProcessing]=useState(false);const pauseRef=useRef(false);const [prepareText,setPrepareText]=useState('');
  const [sync,setSync]=useState<'local'|'saving'|'saved'|'error'>('local');const cloudRevision=useRef(0);const saveQueue=useRef(Promise.resolve());
- const [conflict,setConflict]=useState<Workspace|null>(null);const syncBlocked=useRef(false);
+ const [conflict,setConflict]=useState<Workspace|null>(null);const syncBlocked=useRef(false);const pendingSaves=useRef(0),mutationVersion=useRef(0);
  const [categoryText,setCategoryText]=useState('');const [newCode,setNewCode]=useState('');const [newName,setNewName]=useState('');
  const docs=workspace.invoices;const categories=workspace.categories;
  const currentNav=navigation.find(n=>n.id===tab);
@@ -41,6 +41,23 @@ export default function WorkspaceApp(){
   finally{if(active)setReady(true);}
  })();const cleanup=setInterval(()=>{purgeExpired().catch(()=>{});},60000);const leave=()=>{setReview(null);discardBatch();};window.addEventListener('pagehide',leave);return()=>{active=false;clearInterval(cleanup);window.removeEventListener('pagehide',leave);batchVersion.current++;uploadAbort.current?.abort();clearStagedSources();};},[]);
  useEffect(()=>{setPage(1);setSelected(new Set());},[search,filter,categoryFilter,dateFrom,dateTo,tab]);
+ useEffect(()=>{
+  if(!ready||!config.databaseConfigured)return;
+  let active=true,fetching=false;
+  const refresh=async()=>{
+   if(fetching||document.visibilityState!=='visible'||pendingSaves.current||syncBlocked.current)return;
+   fetching=true;const version=mutationVersion.current;
+   try{
+    const result=await fetchJson<{configured:boolean;workspace:Workspace|null}>('/api/workspace');
+    if(!active||version!==mutationVersion.current||pendingSaves.current||syncBlocked.current)return;
+    if(result.workspace&&result.workspace.revision>cloudRevision.current){
+     const remote=cleanWorkspace(result.workspace);cloudRevision.current=remote.revision;stateRef.current=remote;setWorkspace(remote);await saveWorkspace(remote);setSync('saved');
+    }
+   }catch{}finally{fetching=false;}
+  };
+  const interval=setInterval(refresh,60000);window.addEventListener('focus',refresh);
+  return()=>{active=false;clearInterval(interval);window.removeEventListener('focus',refresh);};
+ },[ready,config.databaseConfigured]);
  async function connectCloud(local:Workspace){
   const response=await fetchJson<{configured:boolean;workspace:Workspace|null}>('/api/workspace');if(!response.configured)return;
   const remote=response.workspace?cleanWorkspace(response.workspace):null;
@@ -55,6 +72,7 @@ export default function WorkspaceApp(){
   }else{const saved=await fetchJson<{revision:number}>('/api/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...local,revision:0})});cloudRevision.current=saved.revision;stateRef.current={...local,revision:saved.revision};setWorkspace(stateRef.current);await saveWorkspace(stateRef.current);setSync('saved');}
  }
  async function commit(mutator:(w:Workspace)=>Workspace){
+  pendingSaves.current++;mutationVersion.current++;try{
   const next=cleanWorkspace(mutator(stateRef.current));stateRef.current=next;setWorkspace(next);await saveWorkspace(next);
   if(!config.databaseConfigured){setSync('local');return;}
   if(syncBlocked.current){setSync('error');return;}
@@ -67,6 +85,7 @@ export default function WorkspaceApp(){
    }catch(e){syncBlocked.current=true;setSync('error');toast.error(e instanceof Error?e.message:'تعذرت المزامنة؛ نسختك محفوظة على الجهاز.');}
   });
   await saveQueue.current;
+  }finally{pendingSaves.current--;}
  }
  async function resolveConflict(useCloud:boolean){
   if(!conflict)return;
@@ -124,7 +143,7 @@ export default function WorkspaceApp(){
     const result=await fetchJson<{invoice:ExtractedInvoiceResult}>('/api/extract',{method:'POST',body:data,signal:controller.signal});
     if(batch!==batchVersion.current)return;
     const raw=result.invoice;
-    let resolved=resolveExtractedCategory(raw,stateRef.current.categories);
+    let resolved=raw.automaticCategoryRule?{category:stateRef.current.categories.find(c=>c.code===raw.categoryCode)||null,created:false}:resolveExtractedCategory(raw,stateRef.current.categories);
     if(resolved.created)await commit(w=>{resolved=resolveExtractedCategory(raw,w.categories);return resolved.created&&resolved.category?{...w,categories:[...w.categories,resolved.category]}:w;});
     if(batch!==batchVersion.current)return;
     const categoryCode=resolved.category?.code||'';const printed={reportedSubtotalCents:raw.subtotalBeforeTax===null?null:roundCents(raw.subtotalBeforeTax),reportedTaxCents:raw.vatAmount===null?null:roundCents(raw.vatAmount),reportedTotalCents:raw.totalIncludingTax===null?null:roundCents(raw.totalIncludingTax)};

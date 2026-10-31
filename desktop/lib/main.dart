@@ -9,6 +9,7 @@ import 'workspace.dart';
 import 'design.dart';
 import 'accounts_dialog.dart';
 import 'account_picker.dart';
+import 'invoice_preview.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -427,7 +428,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                         ),
                         if (w.showPreview &&
                             w.selected != null &&
-                            c.maxWidth >= 900) ...[
+                            c.maxWidth >= 680) ...[
                           const SizedBox(width: 18),
                           SizedBox(width: 300, child: _preview(w.selected!)),
                         ],
@@ -840,48 +841,11 @@ class _WorkspaceViewState extends State<WorkspaceView>
       onCreate: () => showAccountsDialog(context, w),
     ),
   );
-  Widget _preview(InvoicePage page) => Container(
-    decoration: BoxDecoration(
-      color: field,
-      border: Border.all(color: line),
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  page.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, color: navy),
-                ),
-              ),
-              IconButton(
-                tooltip: 'إخفاء الصور',
-                onPressed: () => setState(() => w.showPreview = false),
-                icon: const Icon(Icons.close_rounded, size: 18),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ClipRect(
-            child: InteractiveViewer(
-              minScale: .5,
-              maxScale: 6,
-              child: Center(
-                child: Image.memory(page.bytes, fit: BoxFit.contain),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-      ],
-    ),
+  Widget _preview(InvoicePage page) => InvoicePreview(
+    key: ValueKey(page.id),
+    bytes: page.bytes,
+    name: page.name,
+    onClose: () => setState(() => w.showPreview = false),
   );
 }
 

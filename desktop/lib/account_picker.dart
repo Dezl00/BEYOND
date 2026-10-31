@@ -6,13 +6,13 @@ class AccountPicker extends StatefulWidget {
   final List<Account> accounts;
   final String value;
   final ValueChanged<String>? onChanged;
-  final VoidCallback onCreate;
+  final VoidCallback? onCreate;
   const AccountPicker({
     super.key,
     required this.accounts,
     required this.value,
     this.onChanged,
-    required this.onCreate,
+    this.onCreate,
   });
   @override
   State<AccountPicker> createState() => _AccountPickerState();
@@ -139,15 +139,17 @@ class _AccountPickerState extends State<AccountPicker> {
                           },
                         ),
                 ),
-                const Divider(height: 16),
-                TextButton.icon(
-                  onPressed: () {
-                    menu.close();
-                    widget.onCreate();
-                  },
-                  icon: const Icon(Icons.add_rounded, size: 16),
-                  label: const Text('إضافة حساب'),
-                ),
+                if (widget.onCreate != null) ...[
+                  const Divider(height: 16),
+                  TextButton.icon(
+                    onPressed: () {
+                      menu.close();
+                      widget.onCreate?.call();
+                    },
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text('إضافة حساب'),
+                  ),
+                ],
               ],
             ),
           ),

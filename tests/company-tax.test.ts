@@ -9,9 +9,11 @@ import {testInvoices,testCategories} from './fixtures/invoices';
 const printed={reportedSubtotalCents:100000,reportedTaxCents:15000,reportedTotalCents:115000};
 const grossOnly={...testInvoices[0],companyTaxIdPresent:false,...amountsFromPrinted(printed,false)};
 test('company identifier is exact, accepts printed Arabic digits and rejects partial matches',()=>{
- assert.equal(COMPANY_TAX_ID,'31135441590003');
- for(const value of ['31135441590003','٣١١٣٥٤٤١٥٩٠٠٠٣','۳۱۱۳۵۴۴۱۵۹۰۰۰۳','311 354 415 90003'])assert.equal(hasCompanyTaxIdentifier([value]),true,value);
- for(const value of ['031135441590003','311354415900030','3113544159000','other supplier 300000000000003',''])assert.equal(hasCompanyTaxIdentifier([value]),false,value);
+ assert.equal(COMPANY_TAX_ID,'311354415900003');
+ const arabic=COMPANY_TAX_ID.replace(/[0-9]/g,c=>String.fromCharCode(1632+Number(c)));
+ const persian=COMPANY_TAX_ID.replace(/[0-9]/g,c=>String.fromCharCode(1776+Number(c)));
+ for(const value of [COMPANY_TAX_ID,arabic,persian,'311 354 415 900 003'])assert.equal(hasCompanyTaxIdentifier([value]),true,value);
+ for(const value of ['0'+COMPANY_TAX_ID,COMPANY_TAX_ID+'0',COMPANY_TAX_ID.slice(0,-1),'31135441590003','300000000000003',''])assert.equal(hasCompanyTaxIdentifier([value]),false,value);
  assert.equal(hasCompanyTaxIdentifier([]),false);
 });
 test('missing company identifier creates one gross debit without a VAT label or extra row',()=>{

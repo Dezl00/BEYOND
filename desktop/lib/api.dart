@@ -100,12 +100,32 @@ class BeyondApi {
                         .toList(),
                   }
                 : {
-                    'action': 'rename',
-                    'code': previous.code,
-                    'previousName': previous.name,
-                    'name': accounts.single.name,
+                    'action': 'update',
+                    'previous': {'code': previous.code, 'name': previous.name},
+                    'category': {
+                      'code': accounts.single.code,
+                      'name': accounts.single.name,
+                    },
                   },
           ),
+        )
+        .timeout(const Duration(seconds: 20));
+    return _accountCatalog(response);
+  }
+
+  Future<AccountCatalogUpdate> deleteAccount(
+    Account account, {
+    String? replacementCode,
+  }) async {
+    final response = await _client
+        .post(
+          endpoint('categories'),
+          headers: {...headers, 'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'action': 'delete',
+            'category': {'code': account.code, 'name': account.name},
+            if (replacementCode != null) 'replacementCode': replacementCode,
+          }),
         )
         .timeout(const Duration(seconds: 20));
     return _accountCatalog(response);

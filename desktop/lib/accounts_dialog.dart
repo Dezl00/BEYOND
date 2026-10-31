@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'design.dart';
 import 'models.dart';
 import 'workspace.dart';
+import 'account_picker.dart';
 
 List<Account> parseAccountLines(String text) {
   final result = <Account>[];
@@ -384,24 +385,15 @@ class _AccountsDialogState extends State<AccountsDialog> {
                                           TextFormField(
                                             key: const ValueKey('catalog-code'),
                                             controller: code,
-                                            readOnly: selected != null,
                                             enabled: !w.accountSaving,
                                             textDirection: TextDirection.ltr,
                                             maxLength: 80,
                                             style: const TextStyle(
                                               fontSize: 13,
                                             ),
-                                            decoration: InputDecoration(
+                                            decoration: const InputDecoration(
                                               counterText: '',
                                               fillColor: Colors.white,
-                                              suffixIcon: selected == null
-                                                  ? null
-                                                  : const Icon(
-                                                      Icons
-                                                          .lock_outline_rounded,
-                                                      size: 16,
-                                                      color: muted,
-                                                    ),
                                             ),
                                             validator: (v) =>
                                                 v == null || v.trim().isEmpty
@@ -480,6 +472,34 @@ class _AccountsDialogState extends State<AccountsDialog> {
                                         : 'حفظ التعديل',
                                   ),
                                 ),
+                                if (selected != null) ...[
+                                  const SizedBox(height: 8),
+                                  TextButton.icon(
+                                    onPressed: w.accountSaving
+                                        ? null
+                                        : () async {
+                                            final removed =
+                                                await showDialog<bool>(
+                                                  context: context,
+                                                  builder: (_) =>
+                                                      DeleteAccountDialog(
+                                                        workspace: w,
+                                                        account: selected!,
+                                                      ),
+                                                );
+                                            if (removed == true && mounted)
+                                              reset();
+                                          },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFFB45155),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 17,
+                                    ),
+                                    label: const Text('حذف الحساب'),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -507,6 +527,117 @@ class _AccountsDialogState extends State<AccountsDialog> {
           label,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: active ? blue : muted),
+        ),
+      ),
+    ),
+  );
+}
+
+class DeleteAccountDialog extends StatefulWidget {
+  final Workspace workspace;
+  final Account account;
+  const DeleteAccountDialog({
+    super.key,
+    required this.workspace,
+    required this.account,
+  });
+  @override
+  State<DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
+  String? replacement, error;
+  bool saving = false;
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: !saving,
+    child: Dialog(
+      child: SizedBox(
+        width: 440,
+        child: Padding(
+          padding: const EdgeInsets.all(26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'حذف الحساب',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 16),
+              Text(widget.account.name),
+              Text(
+                widget.account.code,
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(color: muted, fontSize: 12),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'الحساب البديل للفواتير المرتبطة',
+                style: TextStyle(color: muted, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              AccountPicker(
+                accounts: widget.workspace.accounts
+                    .where((a) => a.code != widget.account.code)
+                    .toList(),
+                value: replacement ?? '',
+                onChanged: saving
+                    ? null
+                    : (v) => setState(() => replacement = v),
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 14),
+                Text(
+                  error!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFB45155),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: saving
+                        ? null
+                        : () => Navigator.pop(context, false),
+                    child: const Text('إلغاء'),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            setState(() {
+                              saving = true;
+                              error = null;
+                            });
+                            try {
+                              await widget.workspace.deleteAccount(
+                                widget.account,
+                                replacementCode: replacement,
+                              );
+                              if (context.mounted) Navigator.pop(context, true);
+                            } catch (e) {
+                              if (mounted)
+                                setState(() {
+                                  saving = false;
+                                  error = friendly(e);
+                                });
+                            }
+                          },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFB45155),
+                    ),
+                    child: Text(saving ? 'جارٍ الحذف' : 'حذف'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     ),

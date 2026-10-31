@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {accountChangeSchema,changeDesktopAccounts,mergeAccounts} from '../lib/desktop-accounts';
+import {categoryEtag} from '../lib/category-response';
 import {authorizeDesktop,createDesktopToken} from '../lib/desktop-auth';
 
 test('legacy desktop tokens cannot write accounts, newly granted tokens can',()=>{
@@ -39,4 +40,34 @@ test('account requests cannot include invoices, extra fields, empty names or ove
  assert.equal(accountChangeSchema.safeParse({action:'add',categories:[{code:'001',name:'حساب'}],invoices:[]}).success,false);
  assert.equal(accountChangeSchema.safeParse({action:'add',categories:[{code:'001',name:' ' }]}).success,false);
  assert.equal(accountChangeSchema.safeParse({action:'add',categories:Array.from({length:101},(_,i)=>({code:String(i),name:'حساب'}))}).success,false);
+});
+
+test('editing both account code and name remaps invoice references in the same commit',async()=>{
+ let mapping:Record<string,string>|undefined;
+ const categories=[{code:'001',name:'قديم'}];
+ const result=await changeDesktopAccounts({read:async()=>({revision:2,categories,usage:{'001':3}}),commit:async(revision,next,remaps)=>{assert.equal(revision,2);mapping=remaps;return true;}},{action:'update',previous:categories[0],category:{code:'0002',name:'جديد'}});
+ assert.deepEqual(result,[{code:'0002',name:'جديد'}]);assert.deepEqual(mapping,{'001':'0002'});
+ assert.throws(()=>mergeAccounts([...categories,{code:'0002',name:'موجود'}],{action:'update',previous:categories[0],category:{code:'0002',name:'آخر'}}),{status:409});
+});
+test('deleting an account used by saved invoices requires a valid replacement',async()=>{
+ const categories=[{code:'001',name:'قديم'},{code:'002',name:'بديل'}];let writes=0;
+ const repository={read:async()=>({revision:1,categories,usage:{'001':1}}),commit:async(revision:number,next:typeof categories,remaps?:Record<string,string>)=>{writes++;assert.deepEqual(remaps,{'001':'002'});return true;}};
+ await assert.rejects(()=>changeDesktopAccounts(repository,{action:'delete',category:categories[0]}),{status:409});assert.equal(writes,0);
+ assert.deepEqual(await changeDesktopAccounts(repository,{action:'delete',category:categories[0],replacementCode:'002'}),[categories[1]]);assert.equal(writes,1);
+ assert.throws(()=>mergeAccounts(categories,{action:'delete',category:categories[0],replacementCode:'001'}));
+});
+test('catalog replacement removes old accounts, retains every supplied account and protects concurrent changes',async()=>{
+ const categories=[{code:'old',name:'قديم'}],next=[{code:'00001',name:'أ'},{code:'00002',name:'ب'}];
+ let committed=false;
+ const repository={read:async()=>({revision:4,categories,usage:{}}),commit:async(revision:number,result:typeof next)=>{assert.deepEqual(result,next);committed=true;return true;}};
+ await assert.rejects(()=>changeDesktopAccounts(repository,{action:'replace',categories:next,expectedEtag:'stale'}),{status:409});assert.equal(committed,false);
+ assert.deepEqual(await changeDesktopAccounts(repository,{action:'replace',categories:next,expectedEtag:categoryEtag(categories)}),next);assert.equal(committed,true);
+ assert.throws(()=>mergeAccounts(categories,{action:'replace',categories:[next[0],next[0]],expectedEtag:categoryEtag(categories)}));
+});
+test('catalog replacement cannot orphan invoice accounts and rejects invalid remappings',async()=>{
+ const categories=[{code:'old',name:'قديم'}];const repository={read:async()=>({revision:1,categories,usage:{old:1}}),commit:async()=>true};
+ const change={action:'replace' as const,categories:[{code:'new',name:'جديد'}],expectedEtag:categoryEtag(categories)};
+ await assert.rejects(()=>changeDesktopAccounts(repository,change),{status:409});
+ await assert.rejects(()=>changeDesktopAccounts(repository,{...change,replacements:{old:'missing'}}));
+ assert.deepEqual(await changeDesktopAccounts(repository,{...change,replacements:{old:'new'}}),change.categories);
 });

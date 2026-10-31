@@ -12,7 +12,7 @@ The desktop reads category names/codes from Neon through the shared backend. Acc
 
 ## Company tax treatment
 
-The company identifier is fixed server-side as 31135441590003, exactly as supplied by the owner. New extraction reads printed tax identifiers and matches complete normalized digits (including Arabic/Persian digit forms). A matching invoice has two rows: net and VAT. Without that identifier, the full final invoice amount is a single debit row and no VAT row is emitted. Gross edits do not add VAT back. Printed source amounts remain available internally; absent VAT is never invented for these invoices. The rule is shared by Windows/web previews, Excel and PDF. Existing records without a matching flag retain their previous behavior until re-extracted.
+The company identifier is fixed server-side as 311354415900003, exactly as supplied by the owner. New extraction reads printed tax identifiers and matches complete normalized digits (including Arabic/Persian digit forms). A matching invoice has two rows: net and VAT. Without that identifier, the full final invoice amount is a single debit row and no VAT row is emitted. Gross edits do not add VAT back. Printed source amounts remain available internally; absent VAT is never invented for these invoices. The rule is shared by Windows/web previews, Excel and PDF. Existing records without a matching flag retain their previous behavior until re-extracted.
 
 ## Account management
 
@@ -22,7 +22,7 @@ The new private runtime grants an explicit account-management permission. Legacy
 
 ## Identity and launch
 
-Version 1.2.0 uses a custom blue caption with application-drawn window controls, draggable caption, double-click maximize/restore and native resize borders. The workspace, searchable account picker and account dialog use a rounded flat design with IBM Plex Sans Arabic Regular (400) and Medium (500), bundled under the included OFL license. It opens maximized with a solid blue header, the full supplied Beyond logo and a smooth 2.2-second vector splash. The splash credits BEYOND GROUP in English; reduced animation preferences shorten the entrance. The Windows icon uses only the symbol from the supplied SVG. Startup verification waits until the workspace after the splash has rendered.
+The app uses a custom blue caption with application-drawn window controls, draggable caption, double-click maximize/restore and native resize borders. The workspace, searchable account picker and account dialog use a rounded flat design with IBM Plex Sans Arabic Regular (400) and Medium (500), bundled under the included OFL license. It opens maximized with a solid blue header, the full supplied Beyond logo and a smooth 2.2-second vector splash. The splash credits BEYOND GROUP in English; reduced animation preferences shorten the entrance. The Windows icon uses only the symbol from the supplied SVG. Startup verification waits until the workspace after the splash has rendered.
 
 ## Build
 
@@ -55,3 +55,9 @@ A real scan requires connected hardware; automated tests cover the channel contr
 Version 1.0.1 pins Flutter 3.44.9, which uses the earlier Windows compositor and Skia by default. Flutter 3.47 introduced a compositor regression on some low-feature-level GPUs (flutter/flutter#191978); switching renderer flags alone does not repair that compositor. The 3.44.9 source uses the ES 2 compatible unsized backing-store texture format. Upgrade only after validating rendering on affected hardware.
 
 The portable executable checks its required runtime files next to its own location, independent of the working directory, and reports missing files explicitly. Native startup waits for both the first Flutter frame and the Dart post-frame handshake, with a timeout error instead of indefinite unrendered startup. CI runs the packaged release with --verify-startup from another working directory; that mode exits 0 only after both conditions. This verifies startup, not physical rendering on every GPU. No diagnostic invoice logs or local history are written.
+
+## Version 1.3.0
+
+Account names and codes can be edited or deleted online. A used account requires a replacement on deletion; code edits remap its stored and current preview invoice references atomically. The web refreshes online changes on focus and every minute when there are no unsaved changes. Invoice previews provide zoom buttons, fit and an expanded dialog.
+
+Purchased food, drinks and drinking water use operating expenses. Printing and photocopying use operational stationery; petrol and diesel use fuel. The rule resolves against the current approved catalog without inventing codes; conflicting rules require review. Only the general invoice label is displayed and exported.
