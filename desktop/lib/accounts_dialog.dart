@@ -487,8 +487,9 @@ class _AccountsDialogState extends State<AccountsDialog> {
                                                         account: selected!,
                                                       ),
                                                 );
-                                            if (removed == true && mounted)
+                                            if (removed == true && mounted) {
                                               reset();
+                                            }
                                           },
                                     style: TextButton.styleFrom(
                                       foregroundColor: const Color(0xFFB45155),
@@ -622,11 +623,12 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
                               );
                               if (context.mounted) Navigator.pop(context, true);
                             } catch (e) {
-                              if (mounted)
+                              if (mounted) {
                                 setState(() {
                                   saving = false;
                                   error = friendly(e);
                                 });
+                              }
                             }
                           },
                     style: FilledButton.styleFrom(

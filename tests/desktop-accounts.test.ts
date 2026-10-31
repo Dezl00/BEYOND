@@ -61,7 +61,7 @@ test('catalog replacement removes old accounts, retains every supplied account a
  let committed=false;
  const repository={read:async()=>({revision:4,categories,usage:{}}),commit:async(revision:number,result:typeof next)=>{assert.deepEqual(result,next);committed=true;return true;}};
  await assert.rejects(()=>changeDesktopAccounts(repository,{action:'replace',categories:next,expectedEtag:'stale'}),{status:409});assert.equal(committed,false);
- assert.deepEqual(await changeDesktopAccounts(repository,{action:'replace',categories:next,expectedEtag:categoryEtag(categories)}),next);assert.equal(committed,true);
+ assert.deepEqual(await changeDesktopAccounts(repository,{action:'replace',categories:next,expectedEtag:'W/'+categoryEtag(categories)}),next);assert.equal(committed,true);
  assert.throws(()=>mergeAccounts(categories,{action:'replace',categories:[next[0],next[0]],expectedEtag:categoryEtag(categories)}));
 });
 test('catalog replacement cannot orphan invoice accounts and rejects invalid remappings',async()=>{

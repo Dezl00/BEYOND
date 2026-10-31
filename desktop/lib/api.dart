@@ -124,7 +124,7 @@ class BeyondApi {
           body: jsonEncode({
             'action': 'delete',
             'category': {'code': account.code, 'name': account.name},
-            if (replacementCode != null) 'replacementCode': replacementCode,
+            'replacementCode': ?replacementCode,
           }),
         )
         .timeout(const Duration(seconds: 20));

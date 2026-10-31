@@ -35,8 +35,9 @@ class _InvoicePreviewState extends State<InvoicePreview> {
   @override
   void didUpdateWidget(covariant InvoicePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.bytes, widget.bytes))
+    if (!identical(oldWidget.bytes, widget.bytes)) {
       transform.value = Matrix4.identity();
+    }
   }
 
   @override

@@ -128,8 +128,9 @@ class Workspace extends ChangeNotifier {
 
   Future<void> deleteAccount(Account account, {String? replacementCode}) async {
     if (accountSaving || _disposed) return;
-    if (api == null)
+    if (api == null) {
       throw const ApiException('اتصال الحسابات غير متاح. أعد المزامنة.');
+    }
     if (replacementCode == account.code ||
         (replacementCode != null &&
             !accounts.any((a) => a.code == replacementCode))) {
@@ -150,8 +151,9 @@ class Workspace extends ChangeNotifier {
         replacementCode: replacementCode,
       );
       if (_disposed) return;
-      if (replacementCode != null)
+      if (replacementCode != null) {
         _remapInvoices(account.code, replacementCode);
+      }
       accounts = List.unmodifiable(result.accounts!);
       _accountEtag = result.etag;
       accountSyncError = null;

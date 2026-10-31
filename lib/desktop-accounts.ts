@@ -26,7 +26,7 @@ function currentAccount(categories:Category[],expected:Category){
 export function mergeAccounts(current:Category[],change:Change):Category[]{
  let categories=current.map(c=>({...c}));
  if(change.action==='replace'){
-  if(categoryEtag(current)!==change.expectedEtag)throw new ApiError('تغيرت قائمة الحسابات. أعد قراءتها قبل الاستبدال.',409);
+  if(categoryEtag(current)!==change.expectedEtag.trim().replace(/^W\//,''))throw new ApiError('تغيرت قائمة الحسابات. أعد قراءتها قبل الاستبدال.',409);
   categories=change.categories.map(c=>({...c}));
  }else if(change.action==='delete'){
   currentAccount(categories,change.category);
