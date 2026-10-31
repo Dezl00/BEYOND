@@ -53,3 +53,10 @@ test('review includes supplier in both rows and direct Excel/PDF export without 
  assert.ok(html.includes('Excel'));assert.ok(html.includes('PDF'));assert.ok(html.includes('تصدير مباشر'));
  assert.ok(!html.includes('الأعمدة وترتيبها'));assert.ok(!html.includes('اختيار الكل'));
 });
+
+test('gross-only invoice preview has exactly one editable total row and no VAT row',()=>{
+ const html=renderToStaticMarkup(createElement(Review,{initial:[{...testInvoices[0],companyTaxIdPresent:false}],categories:testCategories,preferences:emptyWorkspace.preferences,existing:[],onClose:()=>{},onSave:async()=>{}}));
+ assert.equal((html.match(/data-invoice-id="test-invoice"/g)||[]).length,1);
+ assert.ok(html.includes('data-entry-type="gross"'));assert.ok(html.includes('1150.00'));
+ assert.ok(!html.includes('data-entry-type="tax"'));assert.ok(!html.includes('قيمة مضافة'));
+});

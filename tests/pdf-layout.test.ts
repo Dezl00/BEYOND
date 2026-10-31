@@ -26,3 +26,13 @@ test('ordinary complete labels stay in one line and retain all requested metadat
  const pages=layoutPdfPages(ctx,exportRows([invoice],testCategories));assert.equal(pages[0].rows[0].lines[1].length,1);
  assert.equal(pages[0].rows[0].lines[1][0],journalLabel(invoice,testCategories));
 });
+
+test('mixed one-row and VAT invoices paginate with correct invoice boundaries and row counts',()=>{
+ const {ctx,painted}=context();
+ const invoices=[...Array.from({length:8},(_,n)=>({...testInvoices[0],id:'gross-'+n,companyTaxIdPresent:false})),{...testInvoices[0],id:'vat',companyTaxIdPresent:true}];
+ const rows=exportRows(invoices,testCategories);const pages=layoutPdfPages(ctx,rows,[...Array(8).fill(1),2]);
+ assert.equal(rows.length,10);assert.deepEqual(pages.map(p=>p.rows.length),[8,2]);
+ const canvas={getContext:()=>ctx} as unknown as HTMLCanvasElement;
+ paintPdfPage(canvas,pages[0],emptyWorkspace.preferences,1,pages.length,9,10);
+ assert.ok(painted.includes('9 فاتورة · 10 صف · ريال سعودي'));
+});

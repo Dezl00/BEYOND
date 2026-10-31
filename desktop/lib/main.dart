@@ -448,7 +448,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                       ),
                       const SizedBox(width: 18),
                       Text(
-                        '${w.invoices.length * 2} صف',
+                        '${w.invoices.fold<int>(0, (n, invoice) => n + invoice.rowCount)} صف',
                         style: const TextStyle(fontSize: 11, color: muted),
                       ),
                       const Spacer(),
@@ -632,7 +632,10 @@ class _WorkspaceViewState extends State<WorkspaceView>
         border: const Border(bottom: BorderSide(color: line)),
       ),
       child: Column(
-        children: [_entry(page, invoice, false), _entry(page, invoice, true)],
+        children: [
+          _entry(page, invoice, false),
+          if (invoice.splitTax) _entry(page, invoice, true),
+        ],
       ),
     );
   }
@@ -742,12 +745,12 @@ class _WorkspaceViewState extends State<WorkspaceView>
                 child: w.editing
                     ? AmountField(
                         key: ValueKey('amount-${page.id}-$vat'),
-                        cents: vat ? invoice.tax : invoice.net,
+                        cents: vat ? invoice.tax : invoice.mainAmount,
                         onChanged: (cents) =>
                             w.update(page, page.invoice!.amount(vat, cents)),
                       )
                     : Text(
-                        money(vat ? invoice.tax : invoice.net),
+                        money(vat ? invoice.tax : invoice.mainAmount),
                         textDirection: TextDirection.ltr,
                         textAlign: TextAlign.left,
                         style: TextStyle(

@@ -1,4 +1,4 @@
-import {type Invoice,type Preferences,type Category,exportColumns,exportRows} from './domain';
+import {type Invoice,type Preferences,type Category,exportColumns,exportRows,invoiceEntries} from './domain';
 import {layoutPdfPages,paintPdfPage,type CanvasFactory} from './pdf-canvas';
 const filename=(extension:string)=>'Beyond-Journal-'+new Date().toISOString().slice(0,10)+'.'+extension;
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
@@ -7,7 +7,8 @@ export async function createExcelBytes(invoices:Invoice[],categories:Category[],
  const {Workbook}=await import('exceljs');
  const workbook=new Workbook();workbook.creator=prefs.company||'Beyond';workbook.created=new Date();
  const sheet=workbook.addWorksheet('Journal',{views:[{rightToLeft:true,state:'frozen',ySplit:1}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
- const records=exportRows(invoices,categories);
+ const records=exportRows(invoices,categories),entries=invoiceEntries(invoices);
+ let group=-1,lastInvoice='';
  const widths=[22,115,24,19,19];
  exportColumns.forEach((column,index)=>{
   const col=sheet.getColumn(index+1);col.width=widths[index];if(column.key==='account')col.numFmt='@';
@@ -17,6 +18,8 @@ export async function createExcelBytes(invoices:Invoice[],categories:Category[],
   cell.alignment={horizontal:'center',vertical:'middle',wrapText:false,readingOrder:'ltr'};
  });sheet.getRow(1).height=30;
  records.forEach((record,index)=>{
+  const entry=entries[index];if(entry.invoice.id!==lastInvoice){lastInvoice=entry.invoice.id;group++;}
+  const groupEnd=entry.kind!=='net';
   const row=sheet.getRow(index+2);
   exportColumns.forEach((column,n)=>{
    const cell=row.getCell(n+1);cell.value=record[column.key];
@@ -24,8 +27,8 @@ export async function createExcelBytes(invoices:Invoice[],categories:Category[],
    cell.alignment={horizontal:column.key==='label'?'right':column.key==='debit'?'left':'center',vertical:'middle',wrapText:false,readingOrder:column.key==='label'?'rtl':'ltr',shrinkToFit:column.key==='label'};
    if(column.key==='debit')cell.numFmt='#,##0.00';
    if(column.key==='account')cell.numFmt='@';
-   if(Math.floor(index/2)%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F7FD'}};
-   cell.border={bottom:{style:index%2===1?'thin':'hair',color:{argb:'FFDCE5F2'}}};
+   if(group%2===1)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F7FD'}};
+   cell.border={bottom:{style:groupEnd?'thin':'hair',color:{argb:'FFDCE5F2'}}};
   });row.height=27;
  });
  sheet.autoFilter={from:{row:1,column:1},to:{row:records.length+1,column:5}};
@@ -41,10 +44,11 @@ export async function createPdfBytes(invoices:Invoice[],categories:Category[],pr
  if(!invoices.length)throw new Error('لا توجد فواتير للتصدير.');
  const {jsPDF}=await import('jspdf');
  const canvas=createCanvas(),ctx=canvas.getContext('2d');if(!ctx)throw new Error('تعذر تجهيز PDF في هذا المتصفح.');
- const pages=layoutPdfPages(ctx,exportRows(invoices,categories));
+ const records=exportRows(invoices,categories);
+ const pages=layoutPdfPages(ctx,records,invoices.map(i=>i.companyTaxIdPresent===false?1:2));
  const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});
  for(let n=0;n<pages.length;n++){
-  paintPdfPage(canvas,pages[n],prefs,n+1,pages.length,invoices.length);
+  paintPdfPage(canvas,pages[n],prefs,n+1,pages.length,invoices.length,records.length);
   if(n)pdf.addPage('a4','landscape');
   pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,297,210,undefined,'FAST');
  }

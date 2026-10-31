@@ -249,4 +249,63 @@ void main() {
     });
     expect(tester.takeException(), isNull);
   });
+  test(
+    'invoices without the company tax identifier keep one gross amount when edited',
+    () {
+      final invoice = fixture().update({'companyTaxIdPresent': false});
+      expect(invoice.splitTax, isFalse);
+      expect(invoice.rowCount, 1);
+      expect(invoice.mainAmount, 115000);
+      final edited = invoice.amount(false, 200000);
+      expect(edited.net, 200000);
+      expect(edited.tax, 0);
+      expect(edited.gross, 200000);
+    },
+  );
+  testWidgets(
+    'missing company tax identifier renders one row beside a normal VAT pair',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final w = Workspace()
+        ..loading = false
+        ..accounts = accounts;
+      w.pages.add(
+        page()
+          ..invoice = fixture().update({'companyTaxIdPresent': false})
+          ..state = PageState.ready,
+      );
+      final second = page();
+      w.pages.add(
+        InvoicePage(id: 'p2', name: second.name, bytes: second.bytes)
+          ..invoice = fixture().update({
+            'id': 'second',
+            'number': '51',
+            'companyTaxIdPresent': true,
+          })
+          ..state = PageState.ready,
+      );
+      await tester.pumpWidget(BeyondApp(workspace: w));
+      await tester.pumpAndSettle();
+      expect(find.text('1150.00'), findsOneWidget);
+      expect(find.text('1000.00'), findsOneWidget);
+      expect(find.text('150.00'), findsOneWidget);
+      expect(find.text('3 صف'), findsOneWidget);
+      expect(find.byType(AccountPicker), findsNWidgets(2));
+      await tester.tap(find.text('تعديل جماعي'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('amount-p1-true')), findsNothing);
+      final total = find.descendant(
+        of: find.byKey(const ValueKey('amount-p1-false')),
+        matching: find.byType(TextFormField),
+      );
+      await tester.enterText(total, '2000');
+      await tester.pumpAndSettle();
+      expect(w.pages.first.invoice!.gross, 200000);
+      expect(w.pages.first.invoice!.tax, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

@@ -4,11 +4,15 @@ A native Flutter Windows x64 client for the existing Beyond backend.
 
 ## Runtime behavior
 
-One Arabic RTL workspace. Multiple images/PDFs (each page is a separate invoice), direct WIA scanner capture, editable accounting pairs, Excel and PDF. No login, settings, history or reports screens. Maximum 50 pages per session; input files up to 25 MB.
+One Arabic RTL workspace. Multiple images/PDFs (each page is a separate invoice), direct WIA scanner capture, editable journal entries, Excel and PDF. No login, settings, history or reports screens. Maximum 50 pages per session; input files up to 25 MB.
 
 All invoice images, rendered PDF pages and extracted records stay in memory. Closing or clearing the workspace discards them. Only an explicit export writes a file at the user's selected path. No invoice database writes, local database, background queue or invoice cache. The OS and scanner driver control their own memory and internal caching.
 
 The desktop reads category names/codes from Neon through the shared backend. Accounts refresh automatically every 60 seconds, on application focus and through the header sync action. Conditional ETags avoid resending an unchanged catalog; network failures retry after 15 seconds. Account changes never rewrite invoice edits. This is an online client; there is no offline processing or disk cache. A new handwritten name is displayed as source data and requires selecting an existing account; use Accounts to add that account, then select it.
+
+## Company tax treatment
+
+The company identifier is fixed server-side as 31135441590003, exactly as supplied by the owner. New extraction reads printed tax identifiers and matches complete normalized digits (including Arabic/Persian digit forms). A matching invoice has two rows: net and VAT. Without that identifier, the full final invoice amount is a single debit row and no VAT row is emitted. Gross edits do not add VAT back. Printed source amounts remain available internally; absent VAT is never invented for these invoices. The rule is shared by Windows/web previews, Excel and PDF. Existing records without a matching flag retain their previous behavior until re-extracted.
 
 ## Account management
 

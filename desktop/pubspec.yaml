@@ -1,7 +1,7 @@
 name: beyond_desktop
 description: Beyond Windows invoice workspace.
 publish_to: none
-version: 1.2.0+5
+version: 1.2.1+6
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:

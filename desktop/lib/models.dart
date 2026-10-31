@@ -16,11 +16,23 @@ class Invoice {
   String get supplier => data['supplier'] as String? ?? '';
   String get account => data['categoryCode'] as String? ?? '';
   int get net => data['netCents'] as int? ?? 0;
+  bool get splitTax => data['companyTaxIdPresent'] != false;
+  int get gross => data['grossCents'] as int? ?? net + tax;
+  int get rowCount => splitTax ? 2 : 1;
+  int get mainAmount => splitTax ? net : gross;
   int get tax => data['taxCents'] as int? ?? 0;
   List<String> get warnings =>
       List<String>.from(data['warnings'] as List? ?? []);
   Invoice update(Map<String, dynamic> values) => Invoice({...data, ...values});
   Invoice amount(bool vat, int cents) {
+    if (!splitTax) {
+      return update({
+        'netCents': cents,
+        'taxCents': 0,
+        'grossCents': cents,
+        'amountSource': 'manual',
+      });
+    }
     final n = vat ? net : cents, t = vat ? cents : (cents * 15 / 100).round();
     return update({
       'netCents': n,

@@ -1,7 +1,7 @@
 export type Category={code:string;name:string};
 export type AmountSource='printed_total'|'derived_subtotal'|'gross_only'|'manual'|'needs_review'|'missing';
 export type Invoice={
- id:string;number:string;date:string;supplier:string;
+ id:string;number:string;date:string;supplier:string;companyTaxIdPresent?:boolean;
  description:string;categoryCode:string;netCents:number;taxCents:number;grossCents:number;amountSource:AmountSource;
  reportedSubtotalCents:number|null;reportedTaxCents:number|null;reportedTotalCents:number|null;
  status:'review'|'approved';createdAt:string;sourceName:string;sourceHash:string;page:number;warnings:string[];duplicateReason:string;demo?:boolean;
@@ -20,8 +20,17 @@ export const taxFromInclusive=(grossCents:number)=>Math.round(grossCents*15/115)
 export const taxFromExclusive=(netCents:number)=>Math.round(netCents*15/100);
 const near=(left:number,right:number)=>Math.abs(left-right)<=2;
 export type PrintedAmounts={reportedSubtotalCents:number|null;reportedTaxCents:number|null;reportedTotalCents:number|null};
-export function amountsFromPrinted(value:PrintedAmounts):Pick<Invoice,'netCents'|'taxCents'|'grossCents'|'amountSource'>{
+export function amountsFromPrinted(value:PrintedAmounts,companyTaxIdPresent?:boolean):Pick<Invoice,'netCents'|'taxCents'|'grossCents'|'amountSource'>{
  const net=value.reportedSubtotalCents,tax=value.reportedTaxCents,gross=value.reportedTotalCents;
+ if(companyTaxIdPresent===false){
+  if(gross!==null){
+   const misread=tax!==null&&tax>2&&((net!==null&&near(gross,net))||(net===null&&near(tax,taxFromExclusive(gross))&&!near(tax,taxFromInclusive(gross))));
+   const final=misread?(net??gross)+tax!:gross;
+   return {netCents:final,taxCents:0,grossCents:final,amountSource:misread?'needs_review':'printed_total'};
+  }
+  if(net!==null){const final=net+(tax??0);return {netCents:final,taxCents:0,grossCents:final,amountSource:'derived_subtotal'};}
+  return {netCents:0,taxCents:0,grossCents:0,amountSource:'missing'};
+ }
  if(gross!==null){
   // A subtotal read as a grand total must never have VAT extracted from it a second time.
   const subtotalMisread=tax!==null&&tax>2&&((net!==null&&near(gross,net))||(net===null&&near(tax,taxFromExclusive(gross))&&!near(tax,taxFromInclusive(gross))));
@@ -33,12 +42,13 @@ export function amountsFromPrinted(value:PrintedAmounts):Pick<Invoice,'netCents'
  return {netCents:0,taxCents:tax??0,grossCents:0,amountSource:'missing'};
 }
 export function editInvoiceAmount(invoice:Invoice,field:'netCents'|'taxCents'|'grossCents',value:number):Invoice{
+ if(invoice.companyTaxIdPresent===false){const final=field==='taxCents'?invoice.grossCents:value;return {...invoice,netCents:final,taxCents:0,grossCents:final,amountSource:'manual'};}
  if(field==='netCents'){const tax=taxFromExclusive(value);return {...invoice,netCents:value,taxCents:tax,grossCents:value+tax,amountSource:'manual'};}
  if(field==='grossCents'){const computed=taxFromInclusive(value);const tax=invoice.reportedTaxCents!==null&&near(invoice.reportedTaxCents,computed)?invoice.reportedTaxCents:computed;return {...invoice,grossCents:value,taxCents:tax,netCents:value-tax,amountSource:'manual'};}
  if(invoice.reportedTotalCents===null||invoice.grossCents<value)return {...invoice,taxCents:value,grossCents:invoice.netCents+value,amountSource:'manual'};
  return {...invoice,taxCents:value,netCents:invoice.grossCents-value,amountSource:'manual'};
 }
-export const applyPrintedAmounts=(invoice:Invoice):Invoice=>({...invoice,...amountsFromPrinted(invoice)});
+export const applyPrintedAmounts=(invoice:Invoice):Invoice=>({...invoice,...amountsFromPrinted(invoice,invoice.companyTaxIdPresent)});
 export function useSubtotalInsteadOfTotal(invoice:Invoice):Invoice{
  const updated={...invoice,reportedSubtotalCents:invoice.reportedSubtotalCents??invoice.reportedTotalCents,reportedTotalCents:null};
  return applyPrintedAmounts(updated);
@@ -54,21 +64,22 @@ export function invoiceProblems(invoice:Invoice,categories:Category[]){
  if(![invoice.netCents,invoice.taxCents,invoice.grossCents].every(n=>Number.isSafeInteger(n)&&n>=0&&n<=100000000000)||invoice.grossCents<=0)problems.push('راجع مبالغ الفاتورة');
  if(!near(invoice.netCents+invoice.taxCents,invoice.grossCents))problems.push('قبل الضريبة + الضريبة لا يساوي الإجمالي النهائي');
  const sourceConsistent=invoice.amountSource!=='manual'&&invoice.reportedSubtotalCents!==null&&invoice.reportedTaxCents!==null&&invoice.reportedTotalCents!==null&&near(invoice.reportedSubtotalCents+invoice.reportedTaxCents,invoice.reportedTotalCents);
- if(!sourceConsistent&&!near(invoice.taxCents,taxFromExclusive(invoice.netCents)))problems.push('الضريبة لا تطابق نسبة 15% من المبلغ قبل الضريبة');
+ if(invoice.companyTaxIdPresent!==false&&!sourceConsistent&&!near(invoice.taxCents,taxFromExclusive(invoice.netCents)))problems.push('الضريبة لا تطابق نسبة 15% من المبلغ قبل الضريبة');
  if(invoice.amountSource==='needs_review')problems.push('المبلغ المقروء كإجمالي يبدو قبل الضريبة؛ أكد نوع المبلغ من الأصل');
  if(invoice.amountSource!=='manual'&&invoice.reportedTotalCents!==null&&!near(invoice.grossCents,invoice.reportedTotalCents))problems.push('الإجمالي النهائي لا يطابق الإجمالي المكتوب؛ راجع هل المبلغ المقروء قبل الضريبة');
- if(invoice.amountSource!=='manual'&&invoice.reportedSubtotalCents!==null&&!near(invoice.netCents,invoice.reportedSubtotalCents))problems.push('المبلغ قبل الضريبة لا يطابق الصافي المكتوب في الأصل');
- if(invoice.amountSource!=='manual'&&invoice.reportedTaxCents!==null&&!near(invoice.taxCents,invoice.reportedTaxCents))problems.push('الضريبة لا تطابق الضريبة المكتوبة في الأصل');
+ if(invoice.companyTaxIdPresent!==false&&invoice.amountSource!=='manual'&&invoice.reportedSubtotalCents!==null&&!near(invoice.netCents,invoice.reportedSubtotalCents))problems.push('المبلغ قبل الضريبة لا يطابق الصافي المكتوب في الأصل');
+ if(invoice.companyTaxIdPresent!==false&&invoice.amountSource!=='manual'&&invoice.reportedTaxCents!==null&&!near(invoice.taxCents,invoice.reportedTaxCents))problems.push('الضريبة لا تطابق الضريبة المكتوبة في الأصل');
  return [...new Set(problems)];
 }
-export function invoiceAmountWarnings(invoice:Invoice){return near(invoice.taxCents,taxFromExclusive(invoice.netCents))?[]:['الضريبة المكتوبة تختلف عن حساب 15%؛ راجع النسبة أو فروق التقريب في الأصل. تم الاحتفاظ بالمبالغ المكتوبة.'];}
+export function invoiceAmountWarnings(invoice:Invoice){return invoice.companyTaxIdPresent===false||near(invoice.taxCents,taxFromExclusive(invoice.netCents))?[]:['الضريبة المكتوبة تختلف عن حساب 15%؛ راجع النسبة أو فروق التقريب في الأصل. تم الاحتفاظ بالمبالغ المكتوبة.'];}
 export function duplicateCandidates(invoice:Invoice,previous:Invoice[]){
  return previous.filter(p=>p.id!==invoice.id&&((!!invoice.sourceHash&&p.sourceHash===invoice.sourceHash)||(!!invoice.number.trim()&&p.number.trim().toLowerCase()===invoice.number.trim().toLowerCase()&&!!invoice.date&&p.date===invoice.date&&(!p.supplier||!invoice.supplier||p.supplier.trim().toLowerCase()===invoice.supplier.trim().toLowerCase())&&p.grossCents===invoice.grossCents)));
 }
 export function generalDescription(categoryCode:string,categories:Category[]){const name=categories.find(c=>c.code===categoryCode)?.name.trim();if(!name)return 'مشتريات متنوعة';return /^(مشتريات|مصروفات|خدمات|أعمال|توريد|صيانة|إيجار|نقل|شحن)/.test(name)?name:'مشتريات '+name;}
-export type EntryKind='net'|'tax';
-export function invoiceEntries(invoices:Invoice[]){return invoices.flatMap(invoice=>[{invoice,kind:'net' as const,amountCents:invoice.netCents},{invoice,kind:'tax' as const,amountCents:invoice.taxCents}]);}
+export type EntryKind='net'|'tax'|'gross';
+export function invoiceEntries(invoices:Invoice[]):{invoice:Invoice;kind:EntryKind;amountCents:number}[]{return invoices.flatMap<{invoice:Invoice;kind:EntryKind;amountCents:number}>(invoice=>invoice.companyTaxIdPresent===false?[{invoice,kind:'gross' as const,amountCents:invoice.grossCents}]:[{invoice,kind:'net' as const,amountCents:invoice.netCents},{invoice,kind:'tax' as const,amountCents:invoice.taxCents}]);}
 export function editEntryAmount(invoice:Invoice,kind:EntryKind,value:number):Invoice{
+ if(kind==='gross'||invoice.companyTaxIdPresent===false)return editInvoiceAmount(invoice,'grossCents',value);
  if(kind==='net')return editInvoiceAmount(invoice,'netCents',value);
  return {...invoice,taxCents:value,grossCents:invoice.netCents+value,amountSource:'manual'};
 }
@@ -111,7 +122,8 @@ export function normalizeInvoice(input:unknown,categories:Category[]):Invoice{
  return {
   id:string(value.id),number:string(value.number),date:string(value.date),supplier:string(value.supplier),
   description:legacy?generalDescription(category,categories):string(value.description),categoryCode:category,
-  netCents:legacy?derived.netCents:integer(value.netCents),taxCents:legacy?derived.taxCents:integer(value.taxCents),grossCents:legacy?derived.grossCents:integer(value.grossCents),amountSource,
+  ...(typeof value.companyTaxIdPresent==='boolean'?{companyTaxIdPresent:value.companyTaxIdPresent}:{}),
+  netCents:value.companyTaxIdPresent===false?integer(value.grossCents):(legacy?derived.netCents:integer(value.netCents)),taxCents:value.companyTaxIdPresent===false?0:(legacy?derived.taxCents:integer(value.taxCents)),grossCents:legacy?derived.grossCents:integer(value.grossCents),amountSource,
   ...printed,status:value.status==='approved'&&amountSource!=='needs_review'&&(!legacy||codes.length<=1)?'approved':'review',
   createdAt:string(value.createdAt),sourceName:string(value.sourceName),sourceHash:string(value.sourceHash),page:integer(value.page,1),
   warnings:[...new Set(warnings)],duplicateReason:string(value.duplicateReason)
