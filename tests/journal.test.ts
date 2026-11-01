@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {exportColumns,exportRows,journalLabel,journalDate} from '../lib/domain';
+import {exportColumns,exportRows,journalLabel,journalDate,VAT_ACCOUNT_CODE} from '../lib/domain';
 import {testInvoices} from './fixtures/invoices';
 const categories=[{code:'005101',name:'مواد كهرباء'}];
 const invoice={...testInvoices[0],supplier:'مؤسسة اي وان',number:'50',date:'2025-11-24',categoryCode:'005101'};
@@ -8,7 +8,13 @@ const expected='مؤسسة اي وان فاتورة رقم 50 بتاريخ 24/11
 test('journal headers exactly match the provided import template',()=>{assert.deepEqual(exportColumns.map(c=>c.label),['Account','Lable','Analtic Account','Debit','Credit']);});
 test('label has supplier, invoice number, Gregorian date and category name in one line',()=>{assert.equal(journalLabel(invoice,categories),expected);assert.ok(!/[\r\n\t]/.test(journalLabel(invoice,categories)));});
 test('VAT description starts with قيمة مضافة and otherwise repeats the full label',()=>{const rows=exportRows([invoice],categories);assert.equal(rows[0].label,expected);assert.equal(rows[1].label,'قيمة مضافة '+expected);});
-test('both rows preserve the account identifier and blank analytic/credit fields',()=>{const rows=exportRows([invoice],categories);assert.equal(rows.length,2);for(const row of rows){assert.equal(row.account,'005101');assert.equal(row.analyticAccount,null);assert.equal(row.credit,null);}assert.deepEqual(rows.map(r=>r.debit),[1000,150]);assert.deepEqual(Object.keys(rows[0]),['account','label','analyticAccount','debit','credit']);});
+test('VAT rows use the fixed account and net rows retain their selected account',()=>{const rows=exportRows([invoice],categories);assert.equal(rows.length,2);assert.deepEqual(rows.map(row=>row.account),['005101','120401000000']);assert.equal(VAT_ACCOUNT_CODE,'120401000000');for(const row of rows){assert.equal(row.analyticAccount,null);assert.equal(row.credit,null);}assert.deepEqual(rows.map(r=>r.debit),[1000,150]);assert.deepEqual(Object.keys(rows[0]),['account','label','analyticAccount','debit','credit']);});
 test('date formatting has no timezone conversion or day/month ambiguity',()=>{assert.equal(journalDate('2025-01-09'),'09/01/2025');assert.equal(journalDate('2025-11-24'),'24/11/2025');assert.equal(journalDate('24/11/2025'),'24/11/2025');});
 test('whitespace in source metadata is collapsed without changing identifiers',()=>{assert.equal(journalLabel({...invoice,supplier:'  مؤسسة\nاي\tوان  ',number:'0050'},categories),'مؤسسة اي وان فاتورة رقم 0050 بتاريخ 24/11/2025 مواد كهرباء');});
 test('zero VAT is a numeric zero debit while Credit remains truly empty',()=>{const row=exportRows([{...invoice,taxCents:0}],categories)[1];assert.equal(row.debit,0);assert.equal(row.credit,null);assert.equal(row.analyticAccount,null);});
+
+test('the VAT account is fixed across different categories, while gross-only invoices keep their own account',()=>{
+ const invoices=[{...invoice,categoryCode:'005101'},{...invoice,id:'second',categoryCode:'009999'},{...invoice,id:'gross',companyTaxIdPresent:false,categoryCode:'004444'}];
+ const rows=exportRows(invoices,categories);assert.deepEqual(rows.map(row=>row.account),['005101','120401000000','009999','120401000000','004444']);
+ assert.deepEqual(rows.map(row=>row.debit),[1000,150,1000,150,1150]);
+});

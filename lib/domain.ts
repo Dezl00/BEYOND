@@ -77,6 +77,8 @@ export function duplicateCandidates(invoice:Invoice,previous:Invoice[]){
 }
 export function generalDescription(categoryCode:string,categories:Category[]){const name=categories.find(c=>c.code===categoryCode)?.name.trim();if(!name)return 'مشتريات متنوعة';return /^(مشتريات|مصروفات|خدمات|أعمال|توريد|صيانة|إيجار|نقل|شحن)/.test(name)?name:'مشتريات '+name;}
 export type EntryKind='net'|'tax'|'gross';
+export const VAT_ACCOUNT_CODE='120401000000';
+export const journalAccount=(invoice:Invoice,kind:EntryKind)=>kind==='tax'?VAT_ACCOUNT_CODE:invoice.categoryCode;
 export function invoiceEntries(invoices:Invoice[]):{invoice:Invoice;kind:EntryKind;amountCents:number}[]{return invoices.flatMap<{invoice:Invoice;kind:EntryKind;amountCents:number}>(invoice=>invoice.companyTaxIdPresent===false?[{invoice,kind:'gross' as const,amountCents:invoice.grossCents}]:[{invoice,kind:'net' as const,amountCents:invoice.netCents},{invoice,kind:'tax' as const,amountCents:invoice.taxCents}]);}
 export function editEntryAmount(invoice:Invoice,kind:EntryKind,value:number):Invoice{
  if(kind==='gross'||invoice.companyTaxIdPresent===false)return editInvoiceAmount(invoice,'grossCents',value);
@@ -96,7 +98,7 @@ export function journalLabel(invoice:Invoice,categories:Category[],kind:EntryKin
 }
 export function exportRows(invoices:Invoice[],categories:Category[]){
  return invoiceEntries(invoices).map(({invoice,kind,amountCents})=>({
-  account:invoice.categoryCode,label:journalLabel(invoice,categories,kind),analyticAccount:null,
+  account:journalAccount(invoice,kind),label:journalLabel(invoice,categories,kind),analyticAccount:null,
   debit:amountCents/100,credit:null
  }));
 }

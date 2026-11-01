@@ -20,7 +20,7 @@ test('contradictory printed amounts are blocked before approval',()=>{const i={.
 test('journal exports net then VAT with a complete label and one debit column',()=>{
  const rows=exportRows([base()],testCategories);assert.equal(rows.length,2);assert.deepEqual(rows.map(r=>r.debit),[1000,150]);
  assert.equal(rows[1].label,'قيمة مضافة '+rows[0].label);
- assert.equal(rows[0].account,rows[1].account);assert.equal(rows[0].credit,null);assert.equal(rows[0].analyticAccount,null);
+ assert.equal(rows[0].account,'TEST-1');assert.equal(rows[1].account,'120401000000');assert.equal(rows[0].credit,null);assert.equal(rows[0].analyticAccount,null);
  assert.deepEqual(Object.keys(rows[0]),['account','label','analyticAccount','debit','credit']);
 });
 

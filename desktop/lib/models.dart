@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+const vatAccountCode = '120401000000';
+
 class Account {
   final String code, name;
   const Account(this.code, this.name);
@@ -15,6 +17,7 @@ class Invoice {
   String get date => data['date'] as String? ?? '';
   String get supplier => data['supplier'] as String? ?? '';
   String get account => data['categoryCode'] as String? ?? '';
+  String accountForEntry({bool vat = false}) => vat ? vatAccountCode : account;
   int get net => data['netCents'] as int? ?? 0;
   bool get splitTax => data['companyTaxIdPresent'] != false;
   int get gross => data['grossCents'] as int? ?? net + tax;

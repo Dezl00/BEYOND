@@ -43,7 +43,7 @@ test('preview repeats invoice metadata in two rows with one Debit header',()=>{
  const html=render();
  assert.equal((html.match(/data-invoice-id="test-invoice"/g)||[]).length,2);
  assert.equal((html.match(/<th>Debit<\/th>/g)||[]).length,1);
- assert.ok(html.includes('data-entry-type="net"'));assert.ok(html.includes('data-entry-type="tax"'));
+ assert.ok(html.includes('data-entry-type="net"'));assert.ok(html.includes('data-entry-type="tax"'));assert.ok(html.includes('120401000000'));assert.ok(!html.includes('تصنيف الفاتورة TEST-001 قيمة مضافة'));
  assert.ok(html.includes('1000.00'));assert.ok(html.includes('150.00'));assert.ok(!html.includes('1150.00'));
  assert.ok(html.includes('استيراد كل الفواتير (1)'));assert.ok(!html.includes('حفظ للمراجعة'));
 });

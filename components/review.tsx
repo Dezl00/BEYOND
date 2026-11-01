@@ -2,7 +2,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import {X,Pencil,CheckCheck,Undo2,FileText,ZoomIn,ZoomOut,Trash2,Save,PanelLeftClose,PanelLeftOpen,Image as ImageIcon} from 'lucide-react';
 import {toast} from 'sonner';
-import {Invoice,Category,invoiceEntries,journalLabel,invoiceProblems,duplicateCandidates,roundCents,editEntryAmount,EntryKind,Preferences} from '@/lib/domain';
+import {Invoice,Category,invoiceEntries,journalLabel,journalAccount,invoiceProblems,duplicateCandidates,roundCents,editEntryAmount,EntryKind,Preferences} from '@/lib/domain';
 import {loadSource} from '@/lib/storage';
 import {sourcePreview} from '@/lib/files';
 import ExportActions from './export-actions';
@@ -43,7 +43,7 @@ export default function Review({initial,categories,existing,onClose,onSave,prefe
     const amountError=issues.find(p=>/مبالغ|الإجمالي|الضريبة/.test(p)),fullLabel=journalLabel(d,categories,kind);
     return <tr key={d.id+'-'+kind} data-invoice-id={d.id} data-entry-type={kind} className={'entry-row entry-'+kind+(sourceId===d.id?' active-invoice':'')} onFocus={()=>setSourceId(d.id)} onClick={()=>setSourceId(d.id)}>
      <td><input type="checkbox" aria-label={'تحديد الفاتورة '+d.number+' '+label} checked={selected.has(d.id)} onChange={()=>toggle(d.id)}/></td>
-     <td><div className="journal-account-picker"><span dir="ltr">{d.categoryCode||'اختر الحساب'}</span><select aria-label={'تصنيف الفاتورة '+(d.number||'الجديدة')+' '+label} aria-invalid={!d.categoryCode} value={d.categoryCode} title={categories.find(c=>c.code===d.categoryCode)?.name||'اختر التصنيف'} onChange={e=>update(d.id,'categoryCode',e.target.value)}><option value="">اختر التصنيف</option>{categories.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></div></td>
+     <td>{kind==='tax'?<div className="journal-account-picker"><span dir="ltr">{journalAccount(d,kind)}</span></div>:<div className="journal-account-picker"><span dir="ltr">{d.categoryCode||'اختر الحساب'}</span><select aria-label={'تصنيف الفاتورة '+(d.number||'الجديدة')+' '+label} aria-invalid={!d.categoryCode} value={d.categoryCode} title={categories.find(c=>c.code===d.categoryCode)?.name||'اختر التصنيف'} onChange={e=>update(d.id,'categoryCode',e.target.value)}><option value="">اختر التصنيف</option>{categories.map(c=><option key={c.code} value={c.code}>{c.code} · {c.name}</option>)}</select></div>}</td>
      <td><input className="cell-input journal-label" aria-label={'Lable '+d.number+' '+label} title={fullLabel} value={fullLabel} readOnly/>{editing&&<div className="journal-edit-fields"><CellInput value={d.supplier} label={'اسم المورد '+label} editing onChange={v=>update(d.id,'supplier',v)}/><CellInput value={d.number} label={'رقم الفاتورة '+label} editing invalid={!d.number.trim()} onChange={v=>update(d.id,'number',v)}/><CellInput value={d.date} label={'تاريخ الفاتورة '+label} editing invalid={issues.some(p=>p.includes('تاريخ'))} type="date" onChange={v=>update(d.id,'date',v)}/></div>}{kind!=='tax'&&matches.length>0&&<div className="duplicate-inline"><span title={matches.map(p=>p.number+' · '+p.date).join('\n')}>احتمال تكرار</span><input aria-label="سبب تسجيل الفاتورة المكررة" value={d.duplicateReason} onChange={e=>update(d.id,'duplicateReason',e.target.value)} placeholder="سبب إعادة التسجيل"/></div>}</td>
      <td className="journal-empty"/>
      <td><MoneyInput value={amountCents} label={'Debit '+label} editing={editing} invalid={!!amountError} title={amountError} onChange={value=>editAmount(d.id,kind,value)}/></td>

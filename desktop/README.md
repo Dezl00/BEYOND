@@ -61,3 +61,7 @@ The portable executable checks its required runtime files next to its own locati
 Account names and codes can be edited or deleted online. A used account requires a replacement on deletion; code edits remap its stored and current preview invoice references atomically. The web refreshes online changes on focus and every minute when there are no unsaved changes. Invoice previews provide zoom buttons, fit and an expanded dialog.
 
 Purchased food, drinks and drinking water use operating expenses. Printing and photocopying use operational stationery; petrol and diesel use fuel. The rule resolves against the current approved catalog without inventing codes; conflicting rules require review. Only the general invoice label is displayed and exported.
+
+## Version 1.3.1
+
+Every VAT journal row uses account 120401000000 in the Windows/web preview and Excel/PDF exports. Net and gross-only rows retain their selected expense account. Export totals derive from the reviewed debit rows; missing debits identify the invoice and source page.

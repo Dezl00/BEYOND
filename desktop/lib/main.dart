@@ -664,7 +664,7 @@ class _WorkspaceViewState extends State<WorkspaceView>
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: vat
                     ? Text(
-                        invoice.account,
+                        invoice.accountForEntry(vat: vat),
                         textAlign: TextAlign.center,
                         textDirection: TextDirection.ltr,
                         style: const TextStyle(

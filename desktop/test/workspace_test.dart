@@ -68,6 +68,8 @@ void main() {
     expect(invoice.label(accounts), label);
     expect(invoice.label(accounts, vat: true), 'قيمة مضافة $label');
     expect(invoice.account, '005101');
+    expect(invoice.accountForEntry(), '005101');
+    expect(invoice.accountForEntry(vat: true), '120401000000');
   });
   test('manual net adds VAT once and manual VAT leaves net untouched', () {
     final invoice = fixture().amount(false, 200000);
@@ -172,6 +174,7 @@ void main() {
       await tester.tap(find.text('مواد سباكة').last);
       await tester.pumpAndSettle();
       expect(p.invoice!.account, '005102');
+      expect(find.text('120401000000'), findsOneWidget);
       await tester.tap(find.text('تعديل جماعي'));
       await tester.pumpAndSettle();
       final net = find.descendant(

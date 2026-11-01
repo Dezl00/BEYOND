@@ -12,7 +12,7 @@ test('PDF draws the exact five journal headers and both debits with empty credit
  const {ctx,painted}=context(),pages=layoutPdfPages(ctx,exportRows(testInvoices,testCategories)),canvas={getContext:()=>ctx} as unknown as HTMLCanvasElement;
  paintPdfPage(canvas,pages[0],emptyWorkspace.preferences,1,pages.length,1);
  assert.equal(canvas.width,2244);assert.equal(canvas.height,1588);
- for(const value of ['Account','Lable','Analtic Account','Debit','Credit','TEST-1','1000.00','150.00'])assert.ok(painted.includes(value),value);
+ for(const value of ['Account','Lable','Analtic Account','Debit','Credit','TEST-1','120401000000','1000.00','150.00'])assert.ok(painted.includes(value),value);
  assert.ok(!painted.includes('1150.00'));assert.ok(!painted.includes('—'));
  assert.ok(painted.some(value=>value.includes('قيمة مضافة')));
 });
