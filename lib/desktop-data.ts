@@ -2,6 +2,7 @@ import {neon} from '@neondatabase/serverless';
 import {categorySchema,invoiceSchema} from './schemas';
 import {ApiError} from './server';
 import {z} from 'zod';
+import type {Invoice} from './domain';
 export async function readDesktopCategories(owner:string){
  const url=process.env.DATABASE_URL;if(!url)throw new ApiError('اتصال التصنيفات غير متاح.',503);
  const sql=neon(url);
@@ -12,6 +13,18 @@ export async function readDesktopCategories(owner:string){
  return result.data;
 }
 const payloadSchema=z.object({invoices:invoiceSchema.array().min(1).max(50)}).strict();
+export function prepareDesktopExportInvoices(invoices:Invoice[]):Invoice[]{
+ return invoices.map(invoice=>{
+  // Debit rows are the amounts the user reviews. The hidden total is derived
+  // from those rows, rather than blocking an export because it is stale.
+  const gross=invoice.companyTaxIdPresent===false?invoice.grossCents:invoice.netCents+invoice.taxCents;
+  const reference=invoice.number.trim()?'الفاتورة رقم «'+invoice.number.trim()+'»':'الفاتورة من «'+invoice.sourceName+'»';
+  const location=invoice.number.trim()?' («'+invoice.sourceName+'»، صفحة '+invoice.page+')':' (صفحة '+invoice.page+')';
+  if(!Number.isSafeInteger(gross)||gross>100000000000)throw new ApiError(reference+location+': المبلغ خارج الحد المسموح. راجع مبلغ Debit.');
+  if(gross<=0)throw new ApiError(reference+location+': مبلغ Debit صفر أو غير مقروء. أدخل المبلغ الصحيح من أصل الفاتورة قبل التصدير.');
+  return invoice.companyTaxIdPresent===false?{...invoice,netCents:gross,taxCents:0,grossCents:gross}:{...invoice,grossCents:gross};
+ });
+}
 export async function desktopExportInput(request:Request,owner:string){
  if(Number(request.headers.get('content-length')||0)>512000)throw new ApiError('دفعة التصدير أكبر من الحد المسموح.',413);
  const bytes=new Uint8Array(await request.arrayBuffer());if(bytes.length>512000)throw new ApiError('دفعة التصدير أكبر من الحد المسموح.',413);
@@ -20,8 +33,7 @@ export async function desktopExportInput(request:Request,owner:string){
  const categories=await readDesktopCategories(owner);
  for(const invoice of parsed.data.invoices){
   if(!categories.some(c=>c.code===invoice.categoryCode))throw new ApiError('اختر حسابًا من التصنيفات لكل فاتورة قبل التصدير.');
-  if(Math.abs(invoice.netCents+invoice.taxCents-invoice.grossCents)>2||invoice.grossCents<=0)throw new ApiError('راجع المبالغ قبل التصدير.');
  }
- return {invoices:parsed.data.invoices,categories};
+ return {invoices:prepareDesktopExportInvoices(parsed.data.invoices),categories};
 }
 export const desktopHeaders={'Cache-Control':'no-store, private','Pragma':'no-cache','X-Content-Type-Options':'nosniff'};
